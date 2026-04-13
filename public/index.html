@@ -1,0 +1,2328 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MEDIC NLG </title>
+  <link rel="icon" type="image/png" href="/ailo-favicon.png" />
+  <link rel="apple-touch-icon" href="/ailo-favicon.png" />
+  <style>
+    :root {
+      /* macOS / iOS-like light theme */
+      --bg: #f5f5f7;
+      --panel: rgba(255, 255, 255, 0.86);
+      --panel-2: rgba(255, 255, 255, 0.96);
+      --text: rgba(17, 24, 39, 0.96);
+      --muted: rgba(60, 60, 67, 0.72);
+      --border: rgba(60, 60, 67, 0.18);
+      --accent: #0a84ff;
+      --accent-2: #30d158;
+      --danger: #ff3b30;
+      --shadow: 0 18px 60px rgba(0,0,0,0.12);
+      --shadow-2: 0 6px 16px rgba(0,0,0,0.10);
+      --radius: 16px;
+      --ring: rgba(10, 132, 255, 0.22);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #ffffff;
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .container { max-width: 100%; margin: 0; padding: 18px 22px 34px; }
+    header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(60,60,67,0.14); }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .logoMark {
+      width: 26px;
+      height: 26px;
+      object-fit: contain;
+      transform: translateY(1px);
+    }
+    .brandMeta {
+      display: inline-flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border: 1px solid rgba(60,60,67,0.14);
+      background: rgba(255,255,255,0.8);
+    }
+    h1 { font-size: 22px; margin: 0; letter-spacing: 0.2px; }
+    .subtitle { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 999px; background: rgba(255,255,255,0.72); backdrop-filter: blur(10px); color: var(--muted); font-size: 12px; box-shadow: var(--shadow-2); }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--danger); }
+    .dot.ok { background: var(--accent-2); }
+
+    .menuWrap { position: relative; display: inline-flex; align-items: center; gap: 10px; }
+    .menuBtn {
+      width: 36px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.72);
+      cursor: pointer;
+      user-select: none;
+      font-weight: 800;
+      letter-spacing: 2px;
+    }
+    .menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      min-width: 240px;
+      border: 1px solid rgba(17,24,39,0.14);
+      background: rgba(255,255,255,0.98);
+      box-shadow: var(--shadow-2);
+      padding: 6px;
+      display: none;
+      z-index: 50;
+    }
+    #exampleMenu {
+      max-height: 60vh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .menu.open { display: block; }
+    .menuItem {
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      padding: 10px 10px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .menuItem:hover { background: rgba(10,132,255,0.06); }
+    .menuSep { height: 1px; background: rgba(17,24,39,0.08); margin: 6px 0; }
+
+
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 0; }
+    @media (min-width: 980px) { .grid { grid-template-columns: 0.9fr 1.1fr; } }
+    @media (min-width: 1400px) { .grid { grid-template-columns: 0.85fr 1.15fr; } }
+
+    .card { background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+    .card .hd {
+      padding: 10px 0 8px;
+      border-bottom: 1px solid rgba(60,60,67,0.14);
+      background: transparent;
+      backdrop-filter: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .card .bd { padding: 14px 0 0; }
+    .card h2 { margin: 0; font-size: 15px; line-height: 1.25; letter-spacing: 0.1px; }
+    .help { color: var(--muted); font-size: 12px; margin: 0; line-height: 1.35; }
+
+    label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 6px; }
+    textarea, select, input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 0;
+      border: 1px solid rgba(17,24,39,0.14);
+      background: rgba(255,255,255,0.9);
+      color: var(--text);
+      outline: none;
+      font: inherit;
+      letter-spacing: 0.1px;
+    }
+    textarea { font-family: inherit; }
+    textarea { min-height: 92px; resize: vertical; }
+    textarea:focus, select:focus, input:focus { border-color: rgba(37,99,235,0.55); box-shadow: 0 0 0 4px var(--ring); }
+
+    .row { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    @media (min-width: 520px) { .row.two { grid-template-columns: 1fr 1fr; } }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .btn {
+      appearance: none;
+      border: 1px solid rgba(17,24,39,0.14);
+      background: rgba(255,255,255,0.9);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 0;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .btn.primary {
+      background: linear-gradient(180deg, rgba(10,132,255,0.20), rgba(10,132,255,0.08));
+      border-color: rgba(10,132,255,0.36);
+    }
+    .btn.ghost { background: rgba(255,255,255,0.7); }
+    .btn:active { transform: translateY(1px); }
+
+    pre {
+      white-space: pre-wrap;
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(17,24,39,0.10);
+      padding: 12px;
+      border-radius: 0;
+      margin: 10px 0 0;
+      min-height: 120px;
+      font-family: inherit;
+      font-size: 13px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid rgba(17,24,39,0.10); padding: 10px 8px; vertical-align: top; }
+    th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; }
+    td { font-size: 13px; }
+    .qid { font-variant-numeric: tabular-nums; font-weight: 700; color: rgba(17,24,39,0.86); }
+    .tableWrap { overflow: auto; max-height: 70vh; border-radius: 0; }
+    thead th {
+      position: sticky;
+      top: 0;
+      background: rgba(255,255,255,0.94);
+      backdrop-filter: blur(10px);
+      z-index: 1;
+    }
+    tr:hover td { background: rgba(10,132,255,0.035); }
+    .ansSel { min-width: 110px; }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .uploader {
+      border: 1px solid rgba(60,60,67,0.14);
+      background: rgba(255,255,255,0.92);
+      border-radius: 0;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .uploaderTop {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .uploaderTitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .uploaderDrop {
+      border: 1px dashed rgba(60,60,67,0.26);
+      border-radius: 0;
+      padding: 12px;
+      background: rgba(245,245,247,0.8);
+      transition: border-color 120ms ease, background 120ms ease;
+      cursor: pointer;
+    }
+    .uploaderDrop:hover {
+      border-color: rgba(10,132,255,0.26);
+      background: rgba(245,245,247,0.92);
+    }
+    .uploaderDrop.drag {
+      border-color: rgba(10,132,255,0.45);
+      background: rgba(10,132,255,0.06);
+    }
+    .uploaderRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .fileBtn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 0;
+      border: 1px solid rgba(60,60,67,0.18);
+      background: rgba(255,255,255,0.95);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+      user-select: none;
+    }
+    .fileBtn:hover { border-color: rgba(10,132,255,0.26); }
+    .fileInput { display: none; }
+    .progress {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid rgba(60,60,67,0.24);
+      border-top-color: rgba(10,132,255,0.65);
+      display: inline-block;
+      animation: spin 0.9s linear infinite;
+      vertical-align: -2px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Fullscreen layout dividers */
+    .grid > .card { padding: 0 18px 22px; }
+    @media (min-width: 980px) {
+      .grid > .card { padding: 0 22px 0; }
+      .grid > .card + .card { border-left: 1px solid rgba(60,60,67,0.14); }
+    }
+    @media (max-width: 979px) {
+      .grid > .card + .card { border-top: 1px solid rgba(60,60,67,0.14); margin-top: 14px; padding-top: 18px; }
+    }
+
+    /* Remove rounded from badge too for consistent flat look */
+    .badge { border-radius: 0; }
+
+    footer {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(60,60,67,0.14);
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .footerRight { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="topbar">
+        <div class="brand">
+          <img class="logoMark" src="/ailo-favicon.png" alt="Logo" />
+          <h1>AILO MEDIC NLG</h1>
+        </div>
+        <div class="menuWrap">
+          <div class="badge" id="statusBadge"><span class="dot" id="statusDot"></span><span id="statusText">Status: belum dicek</span></div>
+          <button class="menuBtn" id="menuBtn" type="button" aria-label="Menu">⋯</button>
+          <div class="menu" id="menu">
+            <div class="help" style="margin: 6px 10px 6px;">Contoh (preset)</div>
+            <div id="exampleMenu"></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <div class="hd">
+          <h2>Input</h2>
+          <div class="help">Format bebas, contoh: <i>Hb 8.8, Leukosit 13.14, Trombosit 370</i></div>
+        </div>
+        <div class="bd">
+          <div class="uploader" id="uploader">
+            <div class="uploaderTop">
+              <p class="uploaderTitle">Upload hasil lab (PDF / foto / .txt). Klik area atau drag & drop.</p>
+              <label class="fileBtn" for="labFile">Pilih File</label>
+              <input class="fileInput" id="labFile" type="file" accept=".txt,text/plain,application/pdf,image/*" />
+            </div>
+            <div class="uploaderDrop" id="dropArea">
+              <div class="uploaderRow">
+                <div class="progress" id="uploadStatus">Belum ada file dipilih.</div>
+                <div class="progress" id="uploadHint">Auto isi & analisis</div>
+              </div>
+            </div>
+          </div>
+
+          <textarea id="labText" style="display:none;">Hb 8.8, Leukosit 13.14, Trombosit 370</textarea>
+
+          <label style="margin-top: 10px;">Input Lab (tabel)</label>
+          <div class="help" style="margin: 0 0 8px;">Isi angka di tabel, nanti otomatis ditulis ke kolom <i>Hasil Lab (teks)</i> agar bisa dianalisis.</div>
+          <div class="uploader" style="gap: 10px;">
+            <div class="uploaderRow">
+              <div class="progress">Sinkronkan tabel → teks</div>
+              <label style="margin: 0; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px;">
+                <input id="syncLabTable" type="checkbox" checked style="width: auto;" /> Aktif
+              </label>
+            </div>
+            <div id="labTableWrap" class="tableWrap" style="max-height: 38vh;"></div>
+            <div class="actions" style="margin-top: 0;">
+              <button class="btn ghost" id="btnClearLabTable" type="button">Kosongkan tabel</button>
+            </div>
+          </div>
+
+          <div class="row two" style="margin-top: 10px;">
+            <div>
+              <label>Nama pasien</label>
+              <input id="patientName" placeholder="(opsional)" autocomplete="off" />
+            </div>
+            <div>
+              <label>Umur (tahun)</label>
+              <input id="patientAge" inputmode="numeric" placeholder="(opsional)" autocomplete="off" />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label>Tanggal lahir</label>
+              <input id="patientDob" type="date" placeholder="(opsional)" autocomplete="off" />
+            </div>
+          </div>
+
+          <div class="row two" style="margin-top: 10px;">
+            <div>
+              <label>Jenis kelamin</label>
+              <select id="sex">
+                <option value="">(belum disebutkan)</option>
+                <option value="pria">Pria</option>
+                <option value="wanita">Wanita</option>
+              </select>
+            </div>
+            <div>
+              <label>Gunakan Ollama NLG</label>
+              <select id="useOllama">
+                <option value="false">Tidak (offline)</option>
+                <option value="true">Ya</option>
+              </select>
+            </div>
+          </div>
+
+          <label style="margin-top: 10px;">Gejala (opsional, teks bebas)</label>
+          <textarea id="symptomsText">pusing dan lemas</textarea>
+
+          <div class="actions">
+            <button class="btn primary" id="btnRun">Analisis</button>
+            <button class="btn ghost" id="btnExportPdf" type="button">Export PDF (A4)</button>
+          </div>
+
+          <label style="margin-top: 10px;">Catatan dokter (final, bisa diedit)</label>
+          <div class="help" style="margin: 0 0 8px;">Draft dibuat dari hasil sistem. Anda bisa edit, lalu simpan. Export PDF akan memakai versi yang tersimpan.</div>
+          <div class="uploader" style="gap: 10px;">
+            <div class="row">
+              <label style="margin: 0;">Judul dan Identitas Pemeriksaan</label>
+              <textarea id="docSecTitle" placeholder="(otomatis)" style="min-height: 80px;"></textarea>
+            </div>
+            <div class="row">
+              <label style="margin: 0;">Ringkasan Kondisi Umum (Executive Clinical Summary)</label>
+              <textarea id="docSecExec" placeholder="(otomatis)" style="min-height: 110px;"></textarea>
+            </div>
+            <div class="row">
+              <label style="margin: 0;">Integrasi dengan Data Anamnesis (Clinical Correlation)</label>
+              <textarea id="docSecCorr" placeholder="(otomatis)" style="min-height: 110px;"></textarea>
+            </div>
+            <div class="row">
+              <label style="margin: 0;">Kesimpulan Klinis Sementara</label>
+              <textarea id="docSecConclusion" placeholder="(otomatis)" style="min-height: 110px;"></textarea>
+            </div>
+            <div class="actions" style="margin-top: 0;">
+              <button class="btn ghost" id="btnDocGenerate" type="button">Generate draft sistem</button>
+              <button class="btn" id="btnDocSave" type="button">Simpan catatan dokter</button>
+              <span class="help" id="docSaveHint" style="margin: 0;"></span>
+            </div>
+          </div>
+
+          <label style="margin-top: 10px;">Ringkasan</label>
+          <div id="summary" style="border: 1px solid rgba(17,24,39,0.10); background: rgba(255,255,255,0.85); padding: 12px; border-radius: 0; min-height: 120px;">
+            <div class="help" style="margin: 0;">Klik Analisis.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="hd">
+          <h2>Anamnesis (Q1–Q27)</h2>
+          <div class="help">Skala: N=Tidak pernah, R=Jarang, S=Kadang-kadang, O=Sering, F=Sangat sering, A=Selalu</div>
+        </div>
+        <div class="bd">
+          <div id="tableWrap" class="tableWrap"></div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <div>Untuk edukasi & prototyping. Bukan pengganti diagnosis dokter.</div>
+      <div class="footerRight">
+        <span id="buildInfo">Local UI</span>
+        <span id="year"></span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<script>
+  const labTextEl = document.getElementById('labText');
+  const labFileEl = document.getElementById('labFile');
+  const dropAreaEl = document.getElementById('dropArea');
+  const uploadStatusEl = document.getElementById('uploadStatus');
+    // Attachment (uploaded clinic report) preview for PDF page-1.
+    window.__uploadedAttachment = null; // { fileName, mime, pageCount?, dataUrl }
+
+    const DOC_STORAGE_KEY = 'medis_nlg_doctor_draft_v1';
+
+    function getDoctorDraftEls() {
+      return {
+        title: document.getElementById('docSecTitle'),
+        exec: document.getElementById('docSecExec'),
+        corr: document.getElementById('docSecCorr'),
+        conclusion: document.getElementById('docSecConclusion'),
+        saveHint: document.getElementById('docSaveHint'),
+        btnGen: document.getElementById('btnDocGenerate'),
+        btnSave: document.getElementById('btnDocSave')
+      };
+    }
+
+    function readDoctorDraftFromUI() {
+      const el = getDoctorDraftEls();
+      return {
+        title: String(el.title?.value || ''),
+        exec: String(el.exec?.value || ''),
+        corr: String(el.corr?.value || ''),
+        conclusion: String(el.conclusion?.value || ''),
+      };
+    }
+
+    function writeDoctorDraftToUI(draft) {
+      const el = getDoctorDraftEls();
+      if (el.title) el.title.value = String(draft?.title || '');
+      if (el.exec) el.exec.value = String(draft?.exec || '');
+      if (el.corr) el.corr.value = String(draft?.corr || '');
+      if (el.conclusion) el.conclusion.value = String(draft?.conclusion || '');
+    }
+
+    function isDraftNonEmpty(d) {
+      const x = d && typeof d === 'object' ? d : {};
+      return Boolean(
+        String(x.title || '').trim() ||
+        String(x.exec || '').trim() ||
+        String(x.corr || '').trim() ||
+        String(x.conclusion || '').trim()
+      );
+    }
+
+    async function generateDoctorDraftViaOllama(last) {
+      const r = await fetch('/api/doctor-draft', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ payload: last?.payload || {}, lastData: last?.data || {} })
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok || !json?.ok) {
+        const msg = json?.error ? String(json.error) : 'Gagal generate draft via Ollama.';
+        throw new Error(msg);
+      }
+      const sys = makeDoctorDraftFromSystem(last);
+      return {
+        title: sys.title,
+        exec: String(json?.draft?.exec || ''),
+        corr: String(json?.draft?.corr || ''),
+        conclusion: String(json?.draft?.conclusion || '')
+      };
+    }
+
+    function loadDoctorDraft() {
+      try {
+        const raw = localStorage.getItem(DOC_STORAGE_KEY);
+        if (!raw) return null;
+        const obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object') return null;
+        return obj;
+      } catch {
+        return null;
+      }
+    }
+
+    function saveDoctorDraft(draft, meta = {}) {
+      try {
+        const payload = {
+          ...draft,
+          _meta: {
+            savedAt: new Date().toISOString(),
+            ...meta
+          }
+        };
+        localStorage.setItem(DOC_STORAGE_KEY, JSON.stringify(payload));
+        return payload;
+      } catch {
+        return null;
+      }
+    }
+
+    function stableJson(obj) {
+      if (!obj || typeof obj !== 'object') return '';
+      const keys = Object.keys(obj).sort();
+      const out = {};
+      for (const k of keys) out[k] = obj[k];
+      try { return JSON.stringify(out); } catch { return ''; }
+    }
+
+    function buildCaseSignature(payload) {
+      const p = payload && typeof payload === 'object' ? payload : {};
+      const sigObj = {
+        patientName: String(p.patientName || '').trim(),
+        patientAge: String(p.patientAge || '').trim(),
+        patientDob: String(p.patientDob || '').trim(),
+        sex: String(p.sex || '').trim(),
+        symptomsText: String(p.symptomsText || '').trim(),
+        labText: String(p.labText || '').trim(),
+        answers: stableJson(p.answers && typeof p.answers === 'object' ? p.answers : {})
+      };
+      return stableJson(sigObj);
+    }
+
+    function ensureTrailingPeriod(s) {
+      const t = String(s || '').trim();
+      if (!t) return t;
+      if (/[.!?…]$/.test(t)) return t;
+      return `${t}.`;
+    }
+
+    function extractKesimpulanAwal(text) {
+      const raw = String(text || '');
+      const lines = raw.split(/\r?\n/);
+      let found = '';
+      const kept = [];
+      for (const line of lines) {
+        const m = String(line).match(/^\s*Kesimpulan\s+awal\s*:\s*(.+)\s*$/i);
+        if (!found && m && m[1]) {
+          found = `Kesimpulan awal: ${String(m[1]).trim()}`;
+          continue;
+        }
+        kept.push(line);
+      }
+      return { kesimpulanAwalLine: found.trim(), cleanedText: kept.join('\n').trim() };
+    }
+
+    function makeDoctorDraftFromSystem(last) {
+      const payload = last?.payload || {};
+      const data = last?.data || {};
+
+      const name = String(payload?.patientName || '').trim() || '(tidak disebutkan)';
+      const age = fmtAge(payload?.patientAge);
+      const dob = fmtDob(payload?.patientDob);
+      const sex = fmtSex(payload?.sex);
+      const ts = fmtDateTime(new Date(last?.ts || Date.now()));
+
+      const dxItems = Array.isArray(data?.diagnosis?.items) ? data.diagnosis.items : [];
+      const dxText = dxItems.length ? dxItems.map(it => it?.label).filter(Boolean).join(', ') : '(tidak ada)';
+
+      const uiValues = (() => {
+        try { return getLabTableValues(); } catch { return {}; }
+      })();
+      const labValues = pickLabValues({ uiValues, parsedLabs: data?.labs });
+      const keyLabPairs = LAB_FIELDS
+        .map(f => ({ k: f.label, v: labValues[f.key] ? String(labValues[f.key]).trim() : '' }))
+        .filter(x => x.v)
+        .slice(0, 8)
+        .map(x => `${x.k}: ${x.v}`);
+      const labShort = keyLabPairs.length ? keyLabPairs.join('; ') : '(lab kosong)';
+
+      const symptoms = String(payload?.symptomsText || '').trim();
+      const anam = payload?.answers && typeof payload.answers === 'object' ? payload.answers : {};
+      const answeredCount = Object.keys(anam).length;
+      const responseRaw = stripDisclaimer(String(data?.response || '').trim());
+      const { kesimpulanAwalLine, cleanedText: response } = extractKesimpulanAwal(responseRaw);
+
+      const title = [
+        'Laporan Ringkas Pemeriksaan',
+        `Tanggal/Jam: ${ts}`,
+        `Nama: ${name}`,
+        `Tanggal lahir: ${dob}`,
+        `Umur: ${age}`,
+        `Jenis kelamin: ${sex}`
+      ].join('\n');
+
+      const exec = [
+        `Keluhan/Gejala: ${ensureTrailingPeriod(symptoms || '(tidak disebutkan)')}`,
+        `Temuan utama hematologi (ringkas): ${ensureTrailingPeriod(labShort)}`,
+        `Dugaan berbasis hematologi: ${ensureTrailingPeriod(dxText)}`,
+        response ? `Narasi sistem: ${response}` : '',
+        kesimpulanAwalLine ? ensureTrailingPeriod(kesimpulanAwalLine) : ''
+      ].filter(Boolean).join('\n');
+
+      const corr = [
+        `Integrasi anamnesis: ${answeredCount ? `${answeredCount} jawaban anamnesis terisi.` : 'Belum ada jawaban anamnesis.'}`,
+        'Korelasi klinis perlu disesuaikan dengan pemeriksaan fisik, riwayat penyakit, obat, dan tren hasil lab serial.',
+        'Bila ada tanda bahaya (perdarahan, penurunan kesadaran, sesak, hipotensi), pertimbangkan rujukan/penanganan segera.'
+      ].join('\n');
+
+      const conclusion = [
+        'Kesimpulan sementara:',
+        `- ${dxItems.length ? dxItems.map(it => it?.label).filter(Boolean).slice(0, 5).join('; ') : '(tidak ada dugaan khusus)'}.`,
+        'Rencana tindak lanjut: verifikasi dengan konteks klinis, pertimbangkan pemeriksaan ulang/penunjang sesuai indikasi.'
+      ].join('\n');
+
+      return { title, exec, corr, conclusion };
+    }
+
+  const LAB_FIELDS = [
+    { key: 'hb', label: 'Hb / Hemoglobin', placeholder: 'mis. 8.8' },
+    { key: 'leukosit', label: 'Leukosit / WBC', placeholder: 'mis. 13.14' },
+    { key: 'trombosit', label: 'Trombosit / PLT', placeholder: 'mis. 370' },
+    { key: 'rbc', label: 'RBC', placeholder: 'mis. 4.6' },
+    { key: 'hct', label: 'Hematokrit / Hct', placeholder: 'mis. 38' },
+    { key: 'mcv', label: 'MCV', placeholder: 'mis. 82' },
+    { key: 'mch', label: 'MCH', placeholder: 'mis. 27' },
+    { key: 'mchc', label: 'MCHC', placeholder: 'mis. 33' },
+    { key: 'rdw', label: 'RDW', placeholder: 'mis. 13.5' },
+    { key: 'mpv', label: 'MPV', placeholder: 'mis. 9.8' },
+    { key: 'neutrophil', label: 'Neutrofil (%)', placeholder: 'mis. 62' },
+    { key: 'lymphocyte', label: 'Limfosit (%)', placeholder: 'mis. 28' },
+    { key: 'monocyte', label: 'Monosit (%)', placeholder: 'mis. 6' },
+    { key: 'eosinophil', label: 'Eosinofil (%)', placeholder: 'mis. 2' },
+    { key: 'glucose', label: 'Glukosa', placeholder: 'mis. 120' },
+    { key: 'urea', label: 'Ureum / Urea', placeholder: 'mis. 30' },
+    { key: 'creatinine', label: 'Kreatinin / Creatinine', placeholder: 'mis. 1.1' },
+    { key: 'ast', label: 'AST / SGOT', placeholder: 'mis. 42' },
+    { key: 'alt', label: 'ALT / SGPT', placeholder: 'mis. 38' },
+    { key: 'crp', label: 'CRP', placeholder: 'mis. 12' }
+  ];
+
+  function buildExamplePresets() {
+    const SEQ_NORMAL = ['N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N','N'];
+    const SEQ_DENGUEISH = ['O','O','S','S','R','S','S','S','N','S','S','S','R','R','R','N','N','N','N','N','S','S','R','N','S','S','N'];
+    const SEQ_ANEMIAISH = ['N','N','N','R','N','S','S','R','N','N','S','N','N','N','N','N','S','S','S','S','O','O','S','N','N','S','N'];
+    const SEQ_INFEKSI = ['S','S','N','S','N','S','R','R','O','N','S','N','N','N','N','N','N','N','N','N','S','S','R','N','S','S','N'];
+    const SEQ_TROMBO_LOW = ['O','O','S','S','S','S','S','S','N','S','S','O','S','S','S','R','N','N','N','N','S','S','R','N','S','S','N'];
+    const SEQ_METAB = ['N','N','N','R','N','N','R','N','N','N','N','N','N','N','N','N','N','N','N','N','R','R','N','N','N','N','N'];
+
+    const base = [
+      {
+        title: 'Example 1 — Anemia (paper)',
+        patientName: 'Pasien A',
+        patientAge: 28,
+        patientDob: '1998-01-12',
+        symptomsText: 'pusing dan lemas',
+        sex: '',
+        labs: { hb: '8.8', leukosit: '13.14', trombosit: '370' },
+        answersSeq: ['N','N','N','N','N','S','R','S','N','N','F','N','N','N','N','N','F','O','F','O','A','A','F','O','O','S','S']
+      },
+      {
+        title: 'Example 2 — Dengue-like',
+        patientName: 'Pasien B',
+        patientAge: 22,
+        patientDob: '2003-08-03',
+        symptomsText: 'demam, nyeri kepala, nyeri sendi',
+        sex: '',
+        labs: { hb: '13.6', leukosit: '3.0', trombosit: '95', hct: '44' },
+        answersSeq: SEQ_DENGUEISH
+      },
+      {
+        title: 'Example 3 — Normal labs, minimal symptoms',
+        patientName: 'Pasien C',
+        patientAge: 35,
+        patientDob: '1990-05-20',
+        symptomsText: 'tidak ada keluhan bermakna',
+        sex: '',
+        labs: { hb: '14.2', leukosit: '7.0', trombosit: '260', hct: '41', rbc: '4.7' },
+        answersSeq: SEQ_NORMAL
+      },
+      {
+        title: 'Example 4 — Mild anemia',
+        patientName: 'Pasien D',
+        patientAge: 31,
+        patientDob: '1994-11-02',
+        symptomsText: 'mudah lelah, berkunang-kunang',
+        sex: 'wanita',
+        labs: { hb: '10.8', leukosit: '6.2', trombosit: '240', rbc: '3.7', hct: '33', mcv: '78', mch: '24', rdw: '15.8' },
+        answersSeq: SEQ_ANEMIAISH
+      },
+      {
+        title: 'Example 5 — Leukocytosis',
+        patientName: 'Pasien E',
+        patientAge: 19,
+        patientDob: '2006-02-14',
+        symptomsText: 'demam dan nyeri tenggorokan',
+        sex: '',
+        labs: { hb: '13.8', leukosit: '14.5', trombosit: '290', crp: '18' },
+        answersSeq: SEQ_INFEKSI
+      },
+      {
+        title: 'Example 6 — Thrombocytopenia severe',
+        patientName: 'Pasien F',
+        patientAge: 27,
+        patientDob: '1999-09-09',
+        symptomsText: 'bintik merah dan mimisan',
+        sex: '',
+        labs: { hb: '12.6', leukosit: '4.1', trombosit: '35', hct: '42', mpv: '11.2' },
+        answersSeq: SEQ_TROMBO_LOW
+      },
+      {
+        title: 'Example 7 — Hyperglycemia',
+        patientName: 'Pasien G',
+        patientAge: 46,
+        patientDob: '1979-04-10',
+        symptomsText: 'sering haus dan sering kencing',
+        sex: '',
+        labs: { glucose: '280', hb: '14.0', leukosit: '7.8', trombosit: '250' },
+        answersSeq: SEQ_METAB
+      },
+      {
+        title: 'Example 8 — Elevated liver enzymes',
+        patientName: 'Pasien H',
+        patientAge: 40,
+        patientDob: '1985-12-21',
+        symptomsText: 'mual, lemas',
+        sex: '',
+        labs: { ast: '120', alt: '140', hb: '13.5', leukosit: '6.5', trombosit: '210' },
+        answersSeq: ['N','N','N','S','R','S','R','R','N','N','S','N','N','N','N','N','N','N','N','N','S','S','N','N','N','N','N']
+      },
+      {
+        title: 'Example 9 — Kidney function abnormal',
+        patientName: 'Pasien I',
+        patientAge: 58,
+        patientDob: '1967-07-07',
+        symptomsText: 'bengkak di kaki',
+        sex: '',
+        labs: { urea: '68', creatinine: '2.4', hb: '11.9', leukosit: '8.2', trombosit: '230' },
+        answersSeq: ['N','N','N','R','N','N','R','N','N','N','S','N','N','N','N','N','R','R','R','R','S','S','R','O','N','N','N']
+      },
+      {
+        title: 'Example 10 — Inflammation (CRP high)',
+        patientName: 'Pasien J',
+        patientAge: 33,
+        patientDob: '1992-03-18',
+        symptomsText: 'nyeri badan dan demam',
+        sex: '',
+        labs: { crp: '55', hb: '13.2', leukosit: '11.2', trombosit: '310' },
+        answersSeq: ['O','S','S','S','R','S','S','S','N','S','S','N','N','N','N','N','N','N','N','N','S','S','R','N','S','S','N']
+      }
+    ];
+
+    const diseaseNames = [
+      'Demam tifoid', 'Influenza', 'Pneumonia', 'Bronkitis', 'Faringitis', 'Tonsilitis', 'Sinusitis', 'Otitis media',
+      'Gastroenteritis', 'Diare akut', 'Dehidrasi', 'Infeksi saluran kemih', 'Pyelonefritis', 'Sepsis (dugaan)',
+      'Dengue fase awal', 'Dengue fase kritis', 'Dengue fase pemulihan', 'Malaria (dugaan)', 'Chikungunya (dugaan)',
+      'Anemia defisiensi besi', 'Anemia kronik', 'Anemia hemolitik (dugaan)', 'Thalassemia trait (dugaan)',
+      'Perdarahan saluran cerna (dugaan)', 'Menorrhagia (dugaan)',
+      'Leukositosis reaktif', 'Leukopenia viral', 'Neutrofilia', 'Limfositosis',
+      'Trombositopenia imun (ITP, dugaan)', 'Trombositopenia obat (dugaan)', 'Trombositopenia karena infeksi',
+      'Trombositosis reaktif',
+      'Diabetes mellitus (dugaan)', 'Hiperglikemia stres', 'Hipoglikemia (dugaan)',
+      'Hepatitis akut (dugaan)', 'Hepatitis kronik (dugaan)', 'NAFLD (dugaan)',
+      'Pankreatitis (dugaan)',
+      'Gagal ginjal akut (dugaan)', 'Penyakit ginjal kronik (dugaan)',
+      'Asma eksaserbasi (dugaan)', 'COPD eksaserbasi (dugaan)',
+      'TB paru (dugaan)', 'COVID-like (dugaan)',
+      'Radang sendi (dugaan)', 'Gout (dugaan)',
+      'Dermatitis (dugaan)', 'Urtikaria (dugaan)',
+      'Apendisitis (dugaan)', 'Kolesistitis (dugaan)',
+      'GERD (dugaan)', 'Gastritis (dugaan)',
+      'Vertigo (dugaan)', 'Migrain (dugaan)',
+      'Stroke (dugaan)',
+      'Hipertensi (dugaan)', 'Hipotensi (dugaan)',
+      'Gagal jantung (dugaan)',
+      'Decompensated anemia (dugaan)',
+      'Perdarahan gusi (dugaan)', 'Epistaksis (dugaan)',
+      'Keganasan hematologi (dugaan)', 'Leukemia (dugaan)',
+      'Alergi obat (dugaan)', 'Anafilaksis (dugaan)',
+      'Keracunan makanan (dugaan)',
+      'Infeksi kulit (dugaan)', 'Selulitis (dugaan)',
+      'DHF (dugaan)', 'DSS (dugaan)',
+      'Kekurangan nutrisi (dugaan)', 'Kehamilan (dugaan)',
+      'Post-op infection (dugaan)',
+      'Autoimun (dugaan)', 'SLE (dugaan)',
+      'Rheumatic fever (dugaan)',
+      'Endokarditis (dugaan)',
+      'Meningitis (dugaan)',
+      'Ensefalitis (dugaan)',
+      'Kerusakan hati obat (dugaan)',
+      'CKD anemia (dugaan)',
+      'Infeksi virus akut',
+      'Infeksi bakteri akut',
+      'Infeksi jamur (dugaan)',
+      'Infeksi parasit (dugaan)',
+      'Peradangan sistemik',
+      'Sakit kepala tegang',
+      'Kelelahan kronik (dugaan)',
+      'Kecemasan (dugaan)',
+      'Depresi (dugaan)',
+      'Reaksi vaksin (dugaan)'
+    ];
+
+    const patterns = [
+      {
+        tag: 'Dengue-like',
+        mk: (i) => ({
+          symptomsText: 'demam, nyeri kepala, nyeri sendi',
+          sex: '',
+          labs: {
+            hb: (13.0 + (i % 5) * 0.3).toFixed(1),
+            leukosit: (2.6 + (i % 7) * 0.2).toFixed(1),
+            trombosit: String(110 - (i % 8) * 8),
+            hct: String(42 + (i % 4) * 1)
+          },
+          answersSeq: SEQ_DENGUEISH
+        })
+      },
+      {
+        tag: 'Anemia-like',
+        mk: (i) => ({
+          symptomsText: 'mudah lelah, berkunang-kunang',
+          sex: (i % 3 === 0) ? 'wanita' : '',
+          labs: {
+            hb: (9.0 + (i % 6) * 0.4).toFixed(1),
+            rbc: (3.2 + (i % 5) * 0.2).toFixed(1),
+            hct: String(28 + (i % 8) * 1),
+            mcv: String(70 + (i % 10) * 2),
+            mch: String(20 + (i % 8) * 1),
+            rdw: (14.0 + (i % 7) * 0.4).toFixed(1)
+          },
+          answersSeq: SEQ_ANEMIAISH
+        })
+      },
+      {
+        tag: 'Infeksi/Inflamasi',
+        mk: (i) => ({
+          symptomsText: 'demam, nyeri tenggorokan, badan pegal',
+          sex: '',
+          labs: {
+            leukosit: (11.0 + (i % 10) * 0.6).toFixed(1),
+            crp: String(8 + (i % 12) * 4),
+            hb: (13.0 + (i % 4) * 0.3).toFixed(1),
+            trombosit: String(240 + (i % 9) * 10)
+          },
+          answersSeq: SEQ_INFEKSI
+        })
+      },
+      {
+        tag: 'Trombosit rendah',
+        mk: (i) => ({
+          symptomsText: 'mudah memar, bintik merah, mimisan',
+          sex: '',
+          labs: {
+            trombosit: String(80 - (i % 10) * 5),
+            leukosit: (4.2 - (i % 5) * 0.2).toFixed(1),
+            hb: (12.0 + (i % 6) * 0.2).toFixed(1),
+            mpv: (10.5 + (i % 6) * 0.3).toFixed(1)
+          },
+          answersSeq: SEQ_TROMBO_LOW
+        })
+      },
+      {
+        tag: 'Metabolik',
+        mk: (i) => ({
+          symptomsText: 'sering haus, sering kencing, mudah lelah',
+          sex: '',
+          labs: {
+            glucose: String(180 + (i % 16) * 12),
+            hb: (13.6 + (i % 4) * 0.2).toFixed(1),
+            leukosit: (6.5 + (i % 8) * 0.3).toFixed(1),
+            trombosit: String(230 + (i % 10) * 10)
+          },
+          answersSeq: SEQ_METAB
+        })
+      },
+      {
+        tag: 'Hati/Ginjal',
+        mk: (i) => ({
+          symptomsText: 'mual, lemas, nafsu makan turun',
+          sex: '',
+          labs: {
+            ast: String(40 + (i % 14) * 9),
+            alt: String(45 + (i % 14) * 10),
+            urea: String(25 + (i % 12) * 4),
+            creatinine: (0.9 + (i % 10) * 0.2).toFixed(1)
+          },
+          answersSeq: ['N','N','N','S','R','S','R','R','N','N','S','N','N','N','N','N','N','N','N','N','S','S','N','N','N','N','N']
+        })
+      }
+    ];
+
+    const out = [...base];
+    for (let i = 0; out.length < 100; i++) {
+      const disease = diseaseNames[i % diseaseNames.length];
+      const p = patterns[i % patterns.length];
+      const idx = out.length + 1;
+      const core = p.mk(i);
+      out.push({
+        title: `Example ${idx} — ${disease} (${p.tag})`,
+        patientName: `Pasien ${idx}`,
+        patientAge: 18 + (i % 53),
+        patientDob: (() => {
+          const year = 2026 - (18 + (i % 53));
+          const mm = String(1 + (i % 12)).padStart(2, '0');
+          const dd = String(1 + (i % 27)).padStart(2, '0');
+          return `${year}-${mm}-${dd}`;
+        })(),
+        ...core
+      });
+    }
+    return out;
+  }
+
+  const EXAMPLE_PRESETS = buildExamplePresets();
+
+  const SCALE = ['','N','R','S','O','F','A'];
+
+  const SCALE_LABELS_ID = {
+    N: 'Tidak pernah',
+    R: 'Jarang',
+    S: 'Kadang-kadang',
+    O: 'Sering',
+    F: 'Sangat sering',
+    A: 'Selalu'
+  };
+
+  const QUESTIONS = [
+    ['Q1','Apakah suhu tubuh ≥ 38°C?'],
+    ['Q2','Apakah demam tidak turun dalam 3 hari terakhir meskipun sudah minum obat penurun panas?'],
+    ['Q3','Apakah pasien menggigil?'],
+    ['Q4','Seberapa sering pasien merasa mual?'],
+    ['Q5','Seberapa sering pasien muntah?'],
+    ['Q6','Apakah pasien kehilangan nafsu makan?'],
+    ['Q7','Apakah pasien merasa pusing?'],
+    ['Q8','Apakah pasien mengalami sakit kepala?'],
+    ['Q9','Apakah pasien mengalami nyeri tenggorokan?'],
+    ['Q10','Apakah pasien mengalami nyeri di perut bagian belakang, tulang, sendi, atau otot?'],
+    ['Q11','Apakah pasien merasa tidak enak badan (malaise) dan mengantuk?'],
+    ['Q12','Apakah pasien mengalami bintik merah pada kulit?'],
+    ['Q13','Apakah pasien mengalami perdarahan mukosa (mis. gusi/mulut)?'],
+    ['Q14','Apakah pasien mengalami perdarahan spontan seperti mimisan?'],
+    ['Q15','Apakah kulit pasien mudah memar?'],
+    ['Q16','Apakah hasil uji torniket positif?'],
+    ['Q17','Apakah wajah pasien tampak pucat?'],
+    ['Q18','Apakah kelopak mata pasien tampak pucat?'],
+    ['Q19','Apakah gusi pasien tampak pucat?'],
+    ['Q20','Apakah kuku pasien tampak pucat?'],
+    ['Q21','Seberapa sering pasien merasa lelah?'],
+    ['Q22','Seberapa sering pasien merasa lemah dan lesu?'],
+    ['Q23','Apakah pasien melihat “kunang-kunang” dan merasa pusing?'],
+    ['Q24','Seberapa sering pasien merasa bengkak (puffy)?'],
+    ['Q25','Apakah napas pasien cepat (lebih dari 20 kali per menit)?'],
+    ['Q26','Apakah denyut jantung pasien di atas normal (lebih dari 100 kali per menit)?'],
+    ['Q27','Apakah pasien mengalami bising jantung (murmur)?']
+  ];
+
+  function renderTable() {
+    const wrap = document.getElementById('tableWrap');
+    const rows = QUESTIONS.map(([id, text]) => {
+      const options = SCALE.map(v => {
+        if (!v) return `<option value="">-</option>`;
+        const label = SCALE_LABELS_ID[v] ? ` — ${escapeHtml(SCALE_LABELS_ID[v])}` : '';
+        return `<option value="${v}">${v}${label}</option>`;
+      }).join('');
+      return `
+        <tr>
+          <td style="width:64px"><span class="qid">${id}</span></td>
+          <td>${text}</td>
+          <td style="width:120px">
+            <select class="ansSel" data-qid="${id}">${options}</select>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Pertanyaan</th><th>Jawaban</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  function renderLabTable() {
+    const wrap = document.getElementById('labTableWrap');
+    if (!wrap) return;
+    const rows = LAB_FIELDS.map(({ key, label, placeholder }) => {
+      return `
+        <tr>
+          <td style="width: 44%"><strong>${escapeHtml(label)}</strong></td>
+          <td style="width: 56%">
+            <input inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(placeholder)}" data-lab="${escapeHtml(key)}" />
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Parameter</th><th>Nilai</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+
+    wrap.querySelectorAll('input[data-lab]').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const sync = document.getElementById('syncLabTable');
+        if (sync?.checked) setLabTextFromTable();
+      });
+    });
+  }
+
+  function getLabTableValues() {
+    const values = {};
+    document.querySelectorAll('input[data-lab]').forEach(inp => {
+      const k = inp.getAttribute('data-lab');
+      const v = String(inp.value || '').trim();
+      if (k && v) values[k] = v;
+    });
+    return values;
+  }
+
+  function setLabTextFromTable() {
+    if (!labTextEl) return;
+    const values = getLabTableValues();
+    const labelMap = Object.fromEntries(LAB_FIELDS.map(f => [f.key, f.label]));
+    const parts = [];
+    for (const f of LAB_FIELDS) {
+      const v = values[f.key];
+      if (!v) continue;
+      // Keep it simple: put the canonical key + value; backend has rich synonyms anyway.
+      parts.push(`${f.key}: ${v}`);
+    }
+    // If empty, do not wipe existing free-text.
+    if (parts.length === 0) return;
+    labTextEl.value = parts.join('\n');
+  }
+
+  function clearLabTable() {
+    document.querySelectorAll('input[data-lab]').forEach(inp => { inp.value = ''; });
+  }
+
+  function setLabTableValues(values) {
+    const map = values && typeof values === 'object' ? values : {};
+    document.querySelectorAll('input[data-lab]').forEach(inp => {
+      const k = inp.getAttribute('data-lab');
+      if (!k) return;
+      const v = map[k];
+      if (v === undefined || v === null) return;
+      inp.value = String(v);
+    });
+    const sync = document.getElementById('syncLabTable');
+    if (sync?.checked) setLabTextFromTable();
+  }
+
+  function setExamplePreset(preset) {
+    // answers
+    const map = {};
+    const seq = Array.isArray(preset?.answersSeq) ? preset.answersSeq : [];
+    for (let i = 0; i < 27; i++) map[`Q${i + 1}`] = seq[i] || '';
+    setAnswers(map);
+
+    // labs
+    clearLabTable();
+    setLabTableValues(preset?.labs || {});
+
+    // other fields
+    const sexEl = document.getElementById('sex');
+    if (sexEl && typeof preset?.sex === 'string') sexEl.value = preset.sex;
+    const symEl = document.getElementById('symptomsText');
+    if (symEl && typeof preset?.symptomsText === 'string') symEl.value = preset.symptomsText;
+
+    const nameEl = document.getElementById('patientName');
+    if (nameEl && typeof preset?.patientName === 'string') nameEl.value = preset.patientName;
+    const ageEl = document.getElementById('patientAge');
+    if (ageEl && (typeof preset?.patientAge === 'string' || typeof preset?.patientAge === 'number')) ageEl.value = String(preset.patientAge);
+    const dobEl = document.getElementById('patientDob');
+    if (dobEl && typeof preset?.patientDob === 'string') dobEl.value = preset.patientDob;
+  }
+
+  function renderExampleMenu() {
+    const host = document.getElementById('exampleMenu');
+    if (!host) return;
+    const items = EXAMPLE_PRESETS.map((p, idx) => {
+      return `<button class="menuItem" type="button" data-example="${idx}">${escapeHtml(p.title)}</button>`;
+    }).join('');
+    host.innerHTML = items + `<div class="menuSep"></div><button class="menuItem" type="button" id="menuClose">Tutup</button>`;
+
+    host.querySelectorAll('button[data-example]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.getAttribute('data-example'));
+        const preset = EXAMPLE_PRESETS[i];
+        if (preset) setExamplePreset(preset);
+        document.getElementById('menu')?.classList.remove('open');
+      });
+    });
+    host.querySelector('#menuClose')?.addEventListener('click', () => {
+      document.getElementById('menu')?.classList.remove('open');
+    });
+  }
+
+  function getAnswers() {
+    const answers = {};
+    document.querySelectorAll('select[data-qid]').forEach(sel => {
+      const qid = sel.getAttribute('data-qid');
+      const v = sel.value;
+      if (v) answers[qid] = v;
+    });
+    return answers;
+  }
+
+  function setAnswers(map) {
+    document.querySelectorAll('select[data-qid]').forEach(sel => {
+      const qid = sel.getAttribute('data-qid');
+      if (map[qid]) sel.value = map[qid];
+    });
+  }
+
+  async function run() {
+    const payload = {
+      patientName: document.getElementById('patientName')?.value || '',
+      patientAge: document.getElementById('patientAge')?.value || '',
+      patientDob: document.getElementById('patientDob')?.value || '',
+      labText: document.getElementById('labText').value,
+      sex: document.getElementById('sex').value,
+      symptomsText: document.getElementById('symptomsText').value,
+      answers: getAnswers(),
+      useOllama: document.getElementById('useOllama').value === 'true'
+    };
+
+    const r = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const data = await r.json();
+    window.__lastResult = { data, payload, ts: new Date().toISOString() };
+    renderSummary(data, payload);
+
+    // Populate doctor draft editor:
+    // - If saved draft matches current case signature: load it
+    // - Otherwise: generate fresh system draft (so it updates when you enter new data)
+    const els = getDoctorDraftEls();
+    const saved = loadDoctorDraft();
+    const sig = buildCaseSignature(payload);
+    const savedSig = saved?._meta?.signature ? String(saved._meta.signature) : '';
+    const hasSavedText = Boolean(saved && typeof saved === 'object' && (saved.title || saved.exec || saved.corr || saved.conclusion));
+    if (hasSavedText && savedSig && savedSig === sig) {
+      writeDoctorDraftToUI(saved);
+      if (els.saveHint) {
+        const when = saved?._meta?.savedAt ? fmtDateTime(new Date(saved._meta.savedAt)) : '';
+        els.saveHint.textContent = when ? `Tersimpan: ${when}` : 'Tersimpan.';
+      }
+    } else {
+      const wantOllamaDraft = payload.useOllama === true;
+      if (wantOllamaDraft) {
+        try {
+          if (els.saveHint) els.saveHint.textContent = 'Membuat draft via Ollama...';
+          const draft = await generateDoctorDraftViaOllama(window.__lastResult);
+          writeDoctorDraftToUI(draft);
+          if (els.saveHint) {
+            els.saveHint.textContent = hasSavedText ? 'Draft Ollama baru (draft tersimpan berbeda kasus).' : 'Draft Ollama (belum disimpan).';
+          }
+        } catch (e) {
+          const draft = makeDoctorDraftFromSystem(window.__lastResult);
+          writeDoctorDraftToUI(draft);
+          if (els.saveHint) {
+            els.saveHint.textContent = `Draft sistem (Ollama gagal: ${String(e?.message || e)}).`;
+          }
+        }
+      } else {
+        const draft = makeDoctorDraftFromSystem(window.__lastResult);
+        writeDoctorDraftToUI(draft);
+        if (els.saveHint) {
+          els.saveHint.textContent = hasSavedText ? 'Draft sistem baru (draft tersimpan berbeda kasus).' : 'Draft sistem (belum disimpan).';
+        }
+      }
+    }
+  }
+
+  function fmtSex(v) {
+    if (v === 'pria') return 'Pria';
+    if (v === 'wanita') return 'Wanita';
+    return '(tidak disebutkan)';
+  }
+
+  function fmtAge(v) {
+    const n = Number(String(v ?? '').trim());
+    if (!Number.isFinite(n) || n <= 0) return '(tidak disebutkan)';
+    return `${Math.round(n)} tahun`;
+  }
+
+  function fmtDob(v) {
+    const s = String(v ?? '').trim();
+    if (!s) return '(tidak disebutkan)';
+    // Expect yyyy-mm-dd from <input type="date">.
+    const m = /^\d{4}-\d{2}-\d{2}$/.test(s);
+    if (!m) return s;
+    try {
+      const dt = new Date(`${s}T00:00:00`);
+      return new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' }).format(dt);
+    } catch {
+      return s;
+    }
+  }
+
+  function fmtDateTime(dt = new Date()) {
+    try {
+      return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(dt);
+    } catch {
+      return dt.toLocaleString();
+    }
+  }
+
+  function safeFixed(n, digits = 4) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return '-';
+    return x.toFixed(digits);
+  }
+
+  function fmtLabNumber(x) {
+    const n = Number(x);
+    if (!Number.isFinite(n)) return '';
+    // Keep as-is but avoid too many trailing zeros.
+    return (Math.round(n * 10000) / 10000).toString();
+  }
+
+  function labValuesFromParsed(parsedLabs) {
+    const out = {};
+    const labs = parsedLabs && typeof parsedLabs === 'object' ? parsedLabs : {};
+    for (const f of LAB_FIELDS) {
+      const obj = labs[f.key];
+      const v = obj && typeof obj === 'object' ? obj.value : null;
+      const s = fmtLabNumber(v);
+      if (s) out[f.key] = s;
+    }
+    return out;
+  }
+
+  function pickLabValues({ uiValues, parsedLabs }) {
+    const hasUi = uiValues && Object.keys(uiValues).length > 0;
+    if (hasUi) return uiValues;
+    const fromParsed = labValuesFromParsed(parsedLabs);
+    if (Object.keys(fromParsed).length) return fromParsed;
+    return {};
+  }
+
+  function renderSummary(data, payload) {
+    const el = document.getElementById('summary');
+    if (!el) return;
+
+    const responseRaw = String(data?.response || '').trim();
+    const response = stripDisclaimer(responseRaw);
+    const nextQuestions = Array.isArray(data?.nextQuestions) ? data.nextQuestions : [];
+    const diagnosisItems = Array.isArray(data?.diagnosis?.items) ? data.diagnosis.items : [];
+
+    const uiLabValues = (() => {
+      try { return getLabTableValues(); } catch { return {}; }
+    })();
+    const labValues = pickLabValues({ uiValues: uiLabValues, parsedLabs: data?.labs });
+    const symptomsText = String(payload?.symptomsText || '').trim();
+    const sex = fmtSex(payload?.sex);
+    const patientName = String(payload?.patientName || '').trim() || '(tidak disebutkan)';
+    const patientAge = fmtAge(payload?.patientAge);
+    const patientDob = fmtDob(payload?.patientDob);
+    const useOllama = Boolean(payload?.useOllama);
+    const generatedAt = fmtDateTime(new Date());
+
+    const esc = escapeHtml;
+    el.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <img src="/ailo-favicon.png" alt="AILO" style="width:22px; height:22px; object-fit:contain;" />
+          <div style="font-weight:700;">Ringkasan Hasil</div>
+        </div>
+        <div class="help" style="margin:0;">${esc(generatedAt)} • NLG: ${useOllama ? 'Ollama' : 'Offline'}</div>
+      </div>
+
+      <div class="row two" style="margin: 0;">
+        <div>
+          <div class="help" style="margin:0 0 6px;">Identitas</div>
+          <div style="font-size:13px; display:grid; gap:4px;">
+            <div>Nama: <strong>${esc(patientName)}</strong></div>
+            <div>Umur: <strong>${esc(patientAge)}</strong></div>
+            <div>Tanggal lahir: <strong>${esc(patientDob)}</strong></div>
+            <div>Jenis kelamin: <strong>${esc(sex)}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="help" style="margin:0 0 6px;">Diagnosis (dugaan) — berdasarkan hematologi</div>
+        ${diagnosisItems.length ? `
+          <ul style="margin:0; padding-left: 18px; font-size:13px;">
+            ${diagnosisItems.map(it => {
+              const basis = Array.isArray(it?.basis) ? it.basis.filter(Boolean) : [];
+              const basisText = basis.length ? ` <span class="help">(${esc(basis.join('; '))})</span>` : '';
+              return `<li><strong>${esc(it?.label || '')}</strong>${basisText}</li>`;
+            }).join('')}
+          </ul>
+        ` : '<div class="help" style="margin:0;">(tidak ada)</div>'}
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="help" style="margin:0 0 6px;">Input ringkas</div>
+        <div style="font-size:13px;">
+          <div><strong>Lab:</strong></div>
+          ${Object.keys(labValues).length ? `
+            <table style="width:100%; border-collapse: collapse; margin-top:6px;">
+              <thead>
+                <tr>
+                  <th style="text-align:left; font-size:12px; color: var(--muted); font-weight:600; border-bottom: 1px solid rgba(17,24,39,0.10); padding: 8px 6px;">Parameter</th>
+                  <th style="text-align:left; font-size:12px; color: var(--muted); font-weight:600; border-bottom: 1px solid rgba(17,24,39,0.10); padding: 8px 6px;">Nilai</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${LAB_FIELDS.map(f => labValues[f.key] ? `
+                  <tr>
+                    <td style="border-bottom: 1px solid rgba(17,24,39,0.06); padding: 8px 6px;">${esc(f.label)}</td>
+                    <td style="border-bottom: 1px solid rgba(17,24,39,0.06); padding: 8px 6px;"><strong>${esc(labValues[f.key])}</strong></td>
+                  </tr>
+                ` : '').join('')}
+              </tbody>
+            </table>
+          ` : '<div class="help" style="margin: 6px 0 0;">(kosong)</div>'}
+          <div style="margin-top:6px;"><strong>Gejala:</strong> ${symptomsText ? esc(symptomsText).replaceAll('\n','<br/>') : '<span class="help">(kosong)</span>'}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="help" style="margin:0 0 6px;">Narasi</div>
+        <div style="font-size:13px; white-space:pre-wrap;">${response ? esc(response) : '<span class="help">(tidak ada response)</span>'}</div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="help" style="margin:0 0 6px;">Pertanyaan berikut (2–3)</div>
+        ${nextQuestions.length ? `
+          <ul style="margin:0; padding-left: 18px; font-size:13px;">
+            ${nextQuestions.map(q => `<li><strong>${esc(q.id || '')}</strong>: ${esc(q.text || '')}</li>`).join('')}
+          </ul>
+        ` : '<div class="help" style="margin:0;">(tidak ada)</div>'}
+      </div>
+
+      <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(17,24,39,0.10);">
+        <div class="help" style="margin:0;">Catatan: ini bukan diagnosis final dan tidak menggantikan dokter.</div>
+      </div>
+    `;
+  }
+
+  function stripDisclaimer(text) {
+    const raw = String(text || '');
+    // Remove the exact disclaimer sentence if it appears in model output.
+    return raw
+      .replaceAll('Catatan: ini bukan diagnosis final dan tidak menggantikan dokter.', '')
+      .replaceAll('Catatan: ini bukan diagnosis final dan tidak menggantikan dokter', '')
+      .replaceAll(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  async function fetchLogoDataUrl() {
+    const r = await fetch('/ailo-favicon.png');
+    const blob = await r.blob();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    return dataUrl;
+  }
+
+  function splitTextToLines(doc, text, maxWidth) {
+    // jsPDF splitTextToSize works, but keep a safe wrapper.
+    try {
+      return doc.splitTextToSize(text, maxWidth);
+    } catch {
+      // fallback naive
+      return String(text).split(/\r?\n/);
+    }
+  }
+
+  function splitTextPreserveParagraphs(doc, text, maxWidth) {
+    const raw = String(text ?? '').replaceAll('\r\n', '\n');
+    const lines = raw.split('\n');
+    const out = [];
+    for (const line of lines) {
+      const t = String(line);
+      if (!t.trim()) {
+        // Keep an empty line as a spacer.
+        out.push('');
+        continue;
+      }
+      const wrapped = splitTextToLines(doc, t, maxWidth);
+      for (const w of wrapped) out.push(String(w));
+    }
+    return out;
+  }
+
+  async function exportPdfA4() {
+    const last = window.__lastResult;
+    if (!last?.data || !last?.payload) {
+      alert('Belum ada hasil. Klik Analisis dulu.');
+      return;
+    }
+
+    const { jsPDF } = window.jspdf || {};
+    if (!jsPDF) {
+      alert('Gagal memuat library PDF. Coba refresh halaman.');
+      return;
+    }
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const headerH = 16;
+    const footerH = 12;
+
+    const logo = await fetchLogoDataUrl().catch(() => null);
+
+    const header = (pageNo, totalPages, title = 'AILO MEDIC NLG — Ringkasan') => {
+      // Background line
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.2);
+      doc.line(margin, margin + headerH, pageW - margin, margin + headerH);
+
+      if (logo) {
+        try {
+          doc.addImage(logo, 'PNG', margin, margin - 2, 10, 10);
+        } catch {
+          // ignore
+        }
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text(String(title), margin + 14, margin + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      const ts = fmtDateTime(new Date(last.ts));
+      doc.text(ts, pageW - margin, margin + 5, { align: 'right' });
+    };
+
+    const footer = (pageNo, totalPages) => {
+      const y = pageH - margin;
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.2);
+      doc.line(margin, y - footerH, pageW - margin, y - footerH);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text('AILO MEDIC NLG', margin, y - 4);
+      doc.text(`Halaman ${pageNo} / ${totalPages}`, pageW - margin, y - 4, { align: 'right' });
+    };
+
+    const contentW = pageW - margin * 2;
+    const maxY = pageH - margin - footerH - 6;
+
+    // IMPORTANT: export must always be exactly 2 pages.
+    // Therefore we NEVER auto-add pages. When content is too long, it is truncated.
+    let currentMaxY = maxY;
+    const addPageIfNeeded = (yRef, neededLines = 1) => {
+      return (yRef.value + neededLines * 5) <= currentMaxY;
+    };
+
+    const drawSection = (yRef, title, bodyText) => {
+      if (!addPageIfNeeded(yRef, 3)) return;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(String(title), margin, yRef.value);
+      yRef.value += 6;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      const text = String(bodyText || '').trim();
+      const lines = splitTextPreserveParagraphs(doc, text || '(kosong)', contentW);
+      for (const line of lines) {
+        if (!addPageIfNeeded(yRef, 1)) break;
+        if (!String(line).trim()) {
+          yRef.value += 4;
+          continue;
+        }
+        doc.text(String(line), margin, yRef.value);
+        yRef.value += 5;
+      }
+      yRef.value += 3;
+    };
+
+    const drawSignatureBlock = (yRef) => {
+      // Always place signature block inside page 2 (no page additions).
+      const blockH = 34;
+      const yStart = Math.min(yRef.value, maxY - blockH);
+      yRef.value = Math.max(yStart, margin + headerH + 8);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('TTD & Nama Dokter:', margin, yRef.value);
+      yRef.value += 10;
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.2);
+      doc.line(margin, yRef.value, margin + 80, yRef.value);
+      yRef.value += 8;
+      doc.text('SIP/STR (opsional):', margin, yRef.value);
+      yRef.value += 10;
+      doc.line(margin, yRef.value, margin + 80, yRef.value);
+      yRef.value += 6;
+    };
+
+    const drawLabTablePage1 = (yRef, values, maxHeightMm) => {
+      const rows = LAB_FIELDS
+        .map(f => ({ label: f.label, value: (values && values[f.key]) ? String(values[f.key]).trim() : '' }))
+        .filter(r => r.value);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+
+      doc.text('Ringkasan Lab (tabel)', margin, yRef.value);
+      yRef.value += 8;
+
+      if (!rows.length) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text('(kosong)', margin, yRef.value);
+        yRef.value += 6;
+        return;
+      }
+
+      const startY = yRef.value;
+      const col1 = Math.round(contentW * 0.62);
+      const col2 = contentW - col1;
+      const rowH = 6;
+      const maxBottom = startY + Math.max(0, Number(maxHeightMm || 0));
+
+      const canFit = () => (yRef.value + rowH) <= Math.min(maxY, maxBottom);
+
+      // Header row
+      if (!canFit()) return;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.rect(margin, yRef.value - 5, col1, rowH);
+      doc.rect(margin + col1, yRef.value - 5, col2, rowH);
+      doc.text('Parameter', margin + 2, yRef.value);
+      doc.text('Nilai', margin + col1 + 2, yRef.value);
+      yRef.value += rowH;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      let shown = 0;
+      for (const r of rows) {
+        if (!canFit()) break;
+        doc.rect(margin, yRef.value - 5, col1, rowH);
+        doc.rect(margin + col1, yRef.value - 5, col2, rowH);
+        const left = splitTextToLines(doc, r.label, col1 - 4);
+        const right = splitTextToLines(doc, r.value, col2 - 4);
+        doc.text(left.slice(0, 1), margin + 2, yRef.value);
+        doc.text(right.slice(0, 1), margin + col1 + 2, yRef.value);
+        yRef.value += rowH;
+        shown++;
+      }
+
+      if (shown < rows.length && canFit()) {
+        doc.setFontSize(9);
+        doc.text(`(ditampilkan ${shown}/${rows.length})`, margin, yRef.value);
+        yRef.value += 5;
+      }
+      yRef.value += 2;
+    };
+
+    const parseNarrativeParts = (responseText) => {
+      const raw = stripDisclaimer(String(responseText || '')).replaceAll('\r\n', '\n').trim();
+      if (!raw) return { deskripsi: '', pertanyaan: [], kesimpulan: '' };
+
+      const pickBlock = (label, untilLabels) => {
+        const until = untilLabels
+          .map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('|');
+        const re = new RegExp(`${label}\\s*:\\s*([\\s\\S]*?)(?=\\n(?:${until})\\s*:|$)`, 'i');
+        const m = raw.match(re);
+        return m ? String(m[1] || '').trim() : '';
+      };
+
+      const deskripsi = pickBlock('Deskripsi', ['Pertanyaan', 'Kesimpulan', 'Kesimpulan awal', 'Catatan']);
+      const kesimpulan = pickBlock('Kesimpulan', ['Catatan']);
+
+      const pertanyaanBlock = pickBlock('Pertanyaan', ['Kesimpulan', 'Catatan']);
+      const pertanyaan = pertanyaanBlock
+        ? pertanyaanBlock
+            .split('\n')
+            .map(l => l.trim())
+            .filter(Boolean)
+            .map(l => l.replace(/^[-•]\s*/, ''))
+        : [];
+
+      return { deskripsi, pertanyaan, kesimpulan };
+    };
+
+    const drawKeyValue = (yRef, key, value) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      if (!addPageIfNeeded(yRef, 1)) return;
+      doc.text(`${key}:`, margin, yRef.value);
+      const vLines = splitTextPreserveParagraphs(doc, String(value || ''), contentW - 30);
+      const x = margin + 28;
+      for (const ln of vLines) {
+        if (!addPageIfNeeded(yRef, 1)) break;
+        if (!String(ln).trim()) {
+          yRef.value += 4;
+          continue;
+        }
+        doc.text(String(ln), x, yRef.value);
+        yRef.value += 5;
+      }
+    };
+
+    // PAGE 1 — lab table + explanation (no attachment page)
+    // Lab values: prefer current table UI values, fallback to parsed labs from backend response.
+    const uiValuesPage1 = (() => {
+      try { return getLabTableValues(); } catch { return {}; }
+    })();
+    const labValuesPage1 = pickLabValues({ uiValues: uiValuesPage1, parsedLabs: last.data?.labs });
+
+    // Explanation under the table: prefer Deskripsi from model response.
+    const parts1 = parseNarrativeParts(last.data?.response || '');
+    const explanation = parts1.deskripsi || stripDisclaimer(String(last.data?.response || '')).trim();
+
+    // Vertically center the whole block (table + explanation) within content area.
+    const contentStartY = margin + headerH + 10;
+    const availableH = maxY - contentStartY;
+
+    const estimateTableHeight = (values) => {
+      const rowsCount = LAB_FIELDS.filter(f => values && values[f.key]).length;
+      if (!rowsCount) return 6; // '(kosong)'
+      const titleH = 6;
+      const headerRowH = 6;
+      const bodyRowsH = rowsCount * 6;
+      const pad = 2;
+      return titleH + headerRowH + bodyRowsH + pad;
+    };
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const expLines = explanation ? splitTextPreserveParagraphs(doc, explanation, contentW) : [];
+    const estimateExplanationHeight = () => {
+      if (!explanation) return 0;
+      const titleH = 6; // section title
+      const linesH = expLines.reduce((acc, ln) => acc + (String(ln).trim() ? 5 : 4), 0);
+      const pad = 3;
+      return titleH + linesH + pad;
+    };
+
+    const blockH = estimateTableHeight(labValuesPage1) + (explanation ? 6 : 0) + estimateExplanationHeight();
+    const centeredStart = contentStartY + Math.max(0, (availableH - blockH) / 2);
+
+    const yRef1 = { value: centeredStart };
+    drawLabTablePage1(yRef1, labValuesPage1, maxY - yRef1.value);
+
+    if (explanation) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      if (addPageIfNeeded(yRef1, 3)) {
+        doc.text('Penjelasan Singkat', margin, yRef1.value);
+        yRef1.value += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        for (const ln of expLines) {
+          if (!addPageIfNeeded(yRef1, 1)) break;
+          if (!String(ln).trim()) {
+            yRef1.value += 4;
+            continue;
+          }
+          doc.text(String(ln), margin, yRef1.value);
+          yRef1.value += 5;
+        }
+        yRef1.value += 3;
+      }
+    }
+
+    // PAGE 2 — report like "Ringkasan Hasil"
+    doc.addPage();
+    let yRef2 = { value: margin + headerH + 8 };
+    // Reserve space at bottom for the signature block.
+    currentMaxY = maxY - 36;
+
+    const payload = last.payload || {};
+    const data = last.data || {};
+    const diagnosisItems = Array.isArray(data?.diagnosis?.items) ? data.diagnosis.items : [];
+    const uiValuesPage2 = (() => {
+      try { return getLabTableValues(); } catch { return {}; }
+    })();
+    const labValuesPage2 = pickLabValues({ uiValues: uiValuesPage2, parsedLabs: data?.labs });
+    const symptoms2 = String(payload?.symptomsText || '').trim();
+    const parts2 = parseNarrativeParts(data?.response || '');
+
+    // Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Ringkasan Hasil', margin, yRef2.value);
+    yRef2.value += 8;
+
+    // Identitas
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Identitas', margin, yRef2.value);
+    yRef2.value += 6;
+    drawKeyValue(yRef2, 'Nama', String(payload?.patientName || '').trim() || '(tidak disebutkan)');
+    drawKeyValue(yRef2, 'Umur', fmtAge(payload?.patientAge));
+    drawKeyValue(yRef2, 'Tanggal lahir', fmtDob(payload?.patientDob));
+    drawKeyValue(yRef2, 'Jenis kelamin', fmtSex(payload?.sex));
+    yRef2.value += 3;
+
+    // Diagnosis
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    if (addPageIfNeeded(yRef2, 3)) {
+      doc.text('Diagnosis/Kondisi (dugaan)', margin, yRef2.value);
+      yRef2.value += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      if (diagnosisItems.length) {
+        for (const it of diagnosisItems) {
+          const label = String(it?.label || '').trim();
+          const basis = Array.isArray(it?.basis) ? it.basis.filter(Boolean) : [];
+          const basisText = basis.length ? ` (${basis.join('; ')})` : '';
+          const ln = `- ${label}${basisText}`;
+          const wrapped = splitTextPreserveParagraphs(doc, ln, contentW);
+          for (const w of wrapped) {
+            if (!addPageIfNeeded(yRef2, 1)) break;
+            doc.text(String(w), margin, yRef2.value);
+            yRef2.value += 5;
+          }
+          if (!addPageIfNeeded(yRef2, 1)) break;
+        }
+      } else {
+        doc.text('(tidak ada)', margin, yRef2.value);
+        yRef2.value += 6;
+      }
+      yRef2.value += 2;
+    }
+
+    // Lab table
+    drawLabTablePage1(yRef2, labValuesPage2, maxY - yRef2.value);
+
+    // Gejala
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    if (addPageIfNeeded(yRef2, 3)) {
+      doc.text('Gejala', margin, yRef2.value);
+      yRef2.value += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      const symLines = splitTextPreserveParagraphs(doc, symptoms2 || '(kosong)', contentW);
+      for (const ln of symLines) {
+        if (!addPageIfNeeded(yRef2, 1)) break;
+        if (!String(ln).trim()) { yRef2.value += 4; continue; }
+        doc.text(String(ln), margin, yRef2.value);
+        yRef2.value += 5;
+      }
+      yRef2.value += 2;
+    }
+
+    // Narasi (Deskripsi)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    if (addPageIfNeeded(yRef2, 3)) {
+      doc.text('Narasi — Deskripsi', margin, yRef2.value);
+      yRef2.value += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      const desc2 = parts2.deskripsi || stripDisclaimer(String(data?.response || '')).trim();
+      const descLines = splitTextPreserveParagraphs(doc, desc2 || '(tidak ada)', contentW);
+      for (const ln of descLines) {
+        if (!addPageIfNeeded(yRef2, 1)) break;
+        if (!String(ln).trim()) { yRef2.value += 4; continue; }
+        doc.text(String(ln), margin, yRef2.value);
+        yRef2.value += 5;
+      }
+      yRef2.value += 2;
+    }
+
+    // Pertanyaan
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    if (addPageIfNeeded(yRef2, 3)) {
+      doc.text('Pertanyaan', margin, yRef2.value);
+      yRef2.value += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      const qLines = (parts2.pertanyaan && parts2.pertanyaan.length)
+        ? parts2.pertanyaan.map(x => `- ${x}`)
+        : ['(tidak ada)'];
+      for (const q of qLines) {
+        const wrapped = splitTextPreserveParagraphs(doc, q, contentW);
+        for (const w of wrapped) {
+          if (!addPageIfNeeded(yRef2, 1)) break;
+          if (!String(w).trim()) { yRef2.value += 4; continue; }
+          doc.text(String(w), margin, yRef2.value);
+          yRef2.value += 5;
+        }
+        if (!addPageIfNeeded(yRef2, 1)) break;
+      }
+      yRef2.value += 2;
+    }
+
+    // Kesimpulan
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    if (addPageIfNeeded(yRef2, 3)) {
+      doc.text('Kesimpulan Klinis', margin, yRef2.value);
+      yRef2.value += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      const dxLabels = diagnosisItems.map(it => String(it?.label || '').trim()).filter(Boolean);
+      const dxLine = `Dugaan kondisi: ${dxLabels.length ? dxLabels.join(', ') : '(tidak ada)'}.`;
+      const kText = parts2.kesimpulan
+        ? `${dxLine}\n\n${parts2.kesimpulan}`
+        : dxLine;
+      const kLines = splitTextPreserveParagraphs(doc, kText, contentW);
+      for (const ln of kLines) {
+        if (!addPageIfNeeded(yRef2, 1)) break;
+        if (!String(ln).trim()) { yRef2.value += 4; continue; }
+        doc.text(String(ln), margin, yRef2.value);
+        yRef2.value += 5;
+      }
+    }
+
+    // Signature block (doctor)
+    yRef2.value += 4;
+    // Move into the reserved bottom area before drawing.
+    yRef2.value = Math.max(yRef2.value, maxY - 36);
+    drawSignatureBlock(yRef2);
+
+    // Hard guarantee: exactly 2 pages.
+    const total = 2;
+    for (let p = 1; p <= total; p++) {
+      doc.setPage(p);
+      const pageTitle = p === 1 ? 'AILO MEDIC NLG — Ringkasan Lab' : 'AILO MEDIC NLG — Ringkasan Hasil';
+      header(p, total, pageTitle);
+      footer(p, total);
+    }
+
+    doc.save(`ailo-medic-nlg_ringkasan_${new Date().toISOString().slice(0,10)}.pdf`);
+  }
+
+  async function updateStatus() {
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    try {
+      const r = await fetch('/api/health');
+      const data = await r.json();
+      const ok = Boolean(data?.ok);
+      if (ok) {
+        dot.classList.add('ok');
+        const modelCount = Array.isArray(data?.tags?.models) ? data.tags.models.length : 0;
+        text.textContent = `Status: backend OK, Ollama OK, model: ${modelCount}`;
+      } else {
+        dot.classList.remove('ok');
+        text.textContent = 'Status: backend OK, Ollama tidak terdeteksi';
+      }
+    } catch {
+      dot.classList.remove('ok');
+      text.textContent = 'Status: backend tidak terdeteksi';
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function setUploadStatus(text, busy = false) {
+    if (!uploadStatusEl) return;
+    uploadStatusEl.innerHTML = busy ? `<span class="spinner"></span> ${escapeHtml(text)}` : escapeHtml(text);
+  }
+
+  function clampByte(x) {
+    return Math.max(0, Math.min(255, x));
+  }
+
+  async function loadImageFromBlob(blob) {
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = new Image();
+      img.decoding = 'async';
+      img.loading = 'eager';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = url;
+      });
+      return img;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function preprocessImageToDataUrl(blob) {
+    const img = await loadImageFromBlob(blob);
+    // Upscale small screenshots to help OCR; downscale very large images.
+    const targetW = 1800;
+    const maxW = 2600;
+    const scale = img.width < targetW ? (targetW / img.width) : (img.width > maxW ? (maxW / img.width) : 1);
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+
+    // Simple grayscale + contrast boost (helps OCR on light scans)
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+    const contrast = 1.25;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      const boosted = (gray - 128) * contrast + 128;
+      const v = clampByte(boosted);
+      d[i] = v; d[i + 1] = v; d[i + 2] = v;
+      // keep alpha
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+
+  async function preprocessImageToDataUrlBinary(blob, threshold = 150) {
+    const img = await loadImageFromBlob(blob);
+    const targetW = 2200;
+    const maxW = 3200;
+    const scale = img.width < targetW ? (targetW / img.width) : (img.width > maxW ? (maxW / img.width) : 1);
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+    const contrast = 1.4;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      const gray0 = 0.299 * r + 0.587 * g + 0.114 * b;
+      const gray = (gray0 - 128) * contrast + 128;
+      const v = gray >= threshold ? 255 : 0;
+      d[i] = v; d[i + 1] = v; d[i + 2] = v;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+
+  function scoreOcrText(text) {
+    const t = String(text || '').toLowerCase();
+    let score = 0;
+    const keywords = ['hb', 'hemoglobin', 'haemoglobin', 'wbc', 'leuk', 'leuc', 'plt', 'platelet', 'thromb', 'tromb'];
+    for (const k of keywords) if (t.includes(k)) score += 20;
+    // Reward presence of decimals and numbers
+    score += Math.min(80, (t.match(/\d/g) || []).length);
+    score += Math.min(80, (t.match(/\d+[\.,]\d+/g) || []).length * 10);
+    // Prefer longer (but cap)
+    score += Math.min(120, t.trim().length / 8);
+    // Penalize obvious garbage
+    score -= Math.min(60, (t.match(/[\[\]{}|]/g) || []).length * 4);
+    return score;
+  }
+
+  async function ocrImageBlob(blob, label) {
+    if (!window.Tesseract) throw new Error('Tesseract.js belum termuat');
+    // Multi-pass OCR: normal + binary + table-tuned
+    const dataUrlA = await preprocessImageToDataUrl(blob);
+    setUploadStatus(`${label}… pass 1/2`, true);
+    const resA = await window.Tesseract.recognize(dataUrlA, 'eng+ind', {
+      logger: (m) => {
+        if (m && m.status) {
+          const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
+          setUploadStatus(`${label}… pass 1/2: ${m.status}${pct}`, true);
+        }
+      },
+      preserve_interword_spaces: '1',
+      tessedit_pageseg_mode: '6',
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
+    });
+
+    const dataUrlB = await preprocessImageToDataUrlBinary(blob, 160);
+    setUploadStatus(`${label}… pass 2/3`, true);
+    const resB = await window.Tesseract.recognize(dataUrlB, 'eng+ind', {
+      logger: (m) => {
+        if (m && m.status) {
+          const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
+          setUploadStatus(`${label}… pass 2/3: ${m.status}${pct}`, true);
+        }
+      },
+      preserve_interword_spaces: '1',
+      tessedit_pageseg_mode: '11',
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
+    });
+
+    const dataUrlC = await preprocessImageToDataUrlBinary(blob, 135);
+    setUploadStatus(`${label}… pass 3/3`, true);
+    const resC = await window.Tesseract.recognize(dataUrlC, 'eng+ind', {
+      logger: (m) => {
+        if (m && m.status) {
+          const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
+          setUploadStatus(`${label}… pass 3/3: ${m.status}${pct}`, true);
+        }
+      },
+      preserve_interword_spaces: '1',
+      tessedit_pageseg_mode: '6',
+      // Slightly relax whitelist for table headers like "10^9/L"
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
+    });
+
+    const textA = (resA?.data?.text || '').trim();
+    const textB = (resB?.data?.text || '').trim();
+    const textC = (resC?.data?.text || '').trim();
+    const scored = [
+      { t: textA, s: scoreOcrText(textA) },
+      { t: textB, s: scoreOcrText(textB) },
+      { t: textC, s: scoreOcrText(textC) },
+    ].sort((x, y) => y.s - x.s);
+    return scored[0].t;
+  }
+
+  async function fileToText(file) {
+    const name = file?.name || 'file';
+    const type = file?.type || '';
+
+    if (type === 'text/plain' || name.toLowerCase().endsWith('.txt')) {
+      return await file.text();
+    }
+
+    if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
+      if (!window.pdfjsLib) throw new Error('pdf.js belum termuat');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
+      const buf = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      let out = '';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        setUploadStatus(`Membaca PDF… halaman ${pageNum}/${pdf.numPages}`, true);
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        const strings = content.items.map((it) => (it && it.str ? it.str : '')).filter(Boolean);
+        out += strings.join(' ') + '\n';
+      }
+
+      const trimmed = out.trim();
+      if (trimmed.length >= 20) return trimmed;
+
+      // Fallback for scanned PDF: render first page to image and OCR.
+      setUploadStatus('PDF tampak hasil scan, mencoba OCR halaman 1…', true);
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('Gagal membuat gambar dari PDF');
+      return await ocrImageBlob(blob, 'OCR PDF');
+    }
+
+    if (type.startsWith('image/')) {
+      return await ocrImageBlob(file, 'OCR foto');
+    }
+
+    throw new Error(`Format tidak didukung: ${type || name}`);
+  }
+
+  async function fileToAttachmentPreview(file) {
+    if (!file) return null;
+    const name = file?.name || 'file';
+    const type = file?.type || '';
+
+    // For images, embed as-is.
+    if (type.startsWith('image/')) {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result || ''));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      return { fileName: name, mime: type || 'image/*', dataUrl };
+    }
+
+    // For PDF, render page 1 to image using pdf.js.
+    if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
+      if (!window.pdfjsLib) throw new Error('pdf.js belum termuat');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
+      const buf = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const dataUrl = canvas.toDataURL('image/png');
+      return { fileName: name, mime: 'application/pdf', pageCount: pdf.numPages, dataUrl };
+    }
+
+    // For txt or others: no attachment page.
+    return null;
+  }
+
+  async function ingestFile(file) {
+    if (!file) return;
+    setUploadStatus(`Memproses: ${file.name}`, true);
+    try {
+      // Try to capture attachment preview for PDF export page-1.
+      try {
+        const att = await fileToAttachmentPreview(file);
+        window.__uploadedAttachment = att;
+      } catch {
+        window.__uploadedAttachment = null;
+      }
+
+      const text = await fileToText(file);
+      if (!text || text.trim().length < 2) {
+        setUploadStatus(`Teks tidak terbaca dari ${file.name}. Coba foto lebih jelas / PDF text-based.`, false);
+        return;
+      }
+      labTextEl.value = text.trim();
+      setUploadStatus(`Selesai: ${file.name} (${labTextEl.value.length} karakter)`, false);
+      await run();
+    } catch (e) {
+      setUploadStatus(`Gagal: ${file.name} — ${e?.message || e}`, false);
+    }
+  }
+
+  function bindDragDrop() {
+    if (!dropAreaEl) return;
+    const stop = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+    };
+    dropAreaEl.addEventListener('click', () => {
+      labFileEl?.click();
+    });
+    ['dragenter', 'dragover'].forEach((evt) => {
+      dropAreaEl.addEventListener(evt, (ev) => {
+        stop(ev);
+        dropAreaEl.classList.add('drag');
+      });
+    });
+    ['dragleave', 'drop'].forEach((evt) => {
+      dropAreaEl.addEventListener(evt, (ev) => {
+        stop(ev);
+        dropAreaEl.classList.remove('drag');
+      });
+    });
+    dropAreaEl.addEventListener('drop', async (ev) => {
+      const f = ev.dataTransfer?.files?.[0];
+      await ingestFile(f);
+    });
+  }
+
+  document.getElementById('btnRun').addEventListener('click', run);
+  document.getElementById('btnExportPdf')?.addEventListener('click', exportPdfA4);
+
+  // Doctor draft actions
+  (() => {
+    const els = getDoctorDraftEls();
+    const saved = loadDoctorDraft();
+    // Do not auto-inject saved draft into the UI on refresh.
+    // The draft will only be loaded after analysis if it matches the current case signature.
+    if (els.saveHint) {
+      const when = saved?._meta?.savedAt ? fmtDateTime(new Date(saved._meta.savedAt)) : '';
+      els.saveHint.textContent = when ? `Ada draft tersimpan (${when}). Klik Analisis untuk update.` : 'Klik Analisis untuk mengisi draft.';
+    }
+
+    els.btnGen?.addEventListener('click', () => {
+      const last = window.__lastResult;
+      if (!last?.data || !last?.payload) {
+        alert('Belum ada hasil. Klik Analisis dulu.');
+        return;
+      }
+      (async () => {
+        try {
+          if (els.saveHint) els.saveHint.textContent = 'Membuat draft via Ollama...';
+          const draft = await generateDoctorDraftViaOllama(last);
+          writeDoctorDraftToUI(draft);
+          if (els.saveHint) els.saveHint.textContent = 'Draft dari Ollama (belum disimpan).';
+        } catch (e) {
+          const draft = makeDoctorDraftFromSystem(last);
+          writeDoctorDraftToUI(draft);
+          if (els.saveHint) els.saveHint.textContent = `Draft sistem (Ollama gagal: ${String(e?.message || e)}).`;
+        }
+      })();
+    });
+
+    els.btnSave?.addEventListener('click', () => {
+      const draft = readDoctorDraftFromUI();
+      const last = window.__lastResult;
+      const sig = buildCaseSignature(last?.payload || {});
+      const meta = {
+        patientName: String(last?.payload?.patientName || '').trim(),
+        patientAge: String(last?.payload?.patientAge || '').trim(),
+        patientDob: String(last?.payload?.patientDob || '').trim(),
+        ts: last?.ts || new Date().toISOString(),
+        signature: sig
+      };
+      const savedDraft = saveDoctorDraft(draft, meta);
+      if (els.saveHint) {
+        const when = savedDraft?._meta?.savedAt ? fmtDateTime(new Date(savedDraft._meta.savedAt)) : '';
+        els.saveHint.textContent = when ? `Tersimpan: ${when}` : 'Tersimpan.';
+      }
+    });
+  })();
+
+  // Header menu (⋯)
+  renderExampleMenu();
+  const menuBtn = document.getElementById('menuBtn');
+  const menuEl = document.getElementById('menu');
+  menuBtn?.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    menuEl?.classList.toggle('open');
+  });
+  document.addEventListener('click', (ev) => {
+    if (!menuEl?.classList.contains('open')) return;
+    const target = ev.target;
+    const wrap = document.querySelector('.menuWrap');
+    if (wrap && target instanceof Node && wrap.contains(target)) return;
+    menuEl?.classList.remove('open');
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') menuEl?.classList.remove('open');
+  });
+  labFileEl?.addEventListener('change', async (ev) => {
+    const input = ev.target;
+    const file = input.files && input.files[0];
+    await ingestFile(file);
+    input.value = '';
+  });
+  renderTable();
+  renderLabTable();
+  bindDragDrop();
+  setUploadStatus('Belum ada file dipilih.', false);
+  updateStatus();
+  setInterval(updateStatus, 5000);
+
+  document.getElementById('btnClearLabTable')?.addEventListener('click', () => {
+    clearLabTable();
+    const sync = document.getElementById('syncLabTable');
+    if (sync?.checked) {
+      const current = String(labTextEl?.value || '');
+      const looksGenerated = LAB_FIELDS.some(f => current.toLowerCase().includes(`${f.key}:`));
+      if (looksGenerated && labTextEl) labTextEl.value = '';
+    }
+  });
+
+  document.getElementById('year').textContent = `© ${new Date().getFullYear()}`;
+</script>
+</body>
+</html>

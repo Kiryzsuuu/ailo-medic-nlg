@@ -1,0 +1,14 @@
+{
+  "name": "medis-nlg-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "start:win": "powershell -NoProfile -ExecutionPolicy Bypass -File START.ps1"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

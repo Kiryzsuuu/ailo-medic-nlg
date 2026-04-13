@@ -1,0 +1,56 @@
+{
+  "scale": {
+    "N": 0.0,
+    "R": 0.2,
+    "S": 0.4,
+    "O": 0.6,
+    "F": 0.8,
+    "A": 1.0
+  },
+  "questions": [
+    {"id": "Q1", "text": "Is the body temperature 38°C or above?"},
+    {"id": "Q2", "text": "Has the body temperature not gone down over the last 3 days after having received fever medications?"},
+    {"id": "Q3", "text": "Is the patient shivering?"},
+    {"id": "Q4", "text": "How often does the patient feel nausea?"},
+    {"id": "Q5", "text": "How often does the patient vomit?"},
+    {"id": "Q6", "text": "Is the patient losing an appetite?"},
+    {"id": "Q7", "text": "Is the patient feeling dizzy?"},
+    {"id": "Q8", "text": "Is the patient experiencing headache?"},
+    {"id": "Q9", "text": "Is the patient having a sore throat?"},
+    {"id": "Q10", "text": "Is the patient having pain in the back abdomen, bones, joints, or muscles?"},
+    {"id": "Q11", "text": "Is the patient experiencing malaise and drowsiness symptoms?"},
+    {"id": "Q12", "text": "Is the patient having red spots?"},
+    {"id": "Q13", "text": "Is the patient’s mucosal bleeding?"},
+    {"id": "Q14", "text": "Is the patient coming down with spontaneous bleeding such as nosebleed?"},
+    {"id": "Q15", "text": "Does the patient’s skin show easy bruising-like symptoms?"},
+    {"id": "Q16", "text": "Is the tourniquet test positive?"},
+    {"id": "Q17", "text": "Is the patient’s face pale?"},
+    {"id": "Q18", "text": "Is the patient’s eyelid pale?"},
+    {"id": "Q19", "text": "Is the patient’s gum pale?"},
+    {"id": "Q20", "text": "Are the patient’s nails pale?"},
+    {"id": "Q21", "text": "How often does the patient feel tired?"},
+    {"id": "Q22", "text": "How often does the patient feel weak and sluggish?"},
+    {"id": "Q23", "text": "Has the patient seen stars and felt dizzy?"},
+    {"id": "Q24", "text": "How often does the patient feel puffy?"},
+    {"id": "Q25", "text": "Is the patient’s breath pace fast (more than 20 times a minute)?"},
+    {"id": "Q26", "text": "Is the patient’s heartbeat above the normal rate (more than 100 times a minute)?"},
+    {"id": "Q27", "text": "Is the patient coming down with heart murmurs?"}
+  ],
+  "dengue_rules": {
+    "RA1": {"expr": {"or": ["Q1", "Q2"]}, "mb": 0.9, "md": 0.2},
+    "RA2": {"expr": {"and": ["RA1", "Q3"]}, "mb": 0.8, "md": 0.1},
+    "RA3": {"expr": {"and": [{"or": ["Q4", "Q5"]}, "Q6"]}, "mb": 0.4, "md": 0.1},
+    "RA4": {"expr": {"and": [{"or": ["Q7", "Q8"]}, "Q9", {"or": ["Q10", "Q11"]}]}, "mb": 0.7, "md": 0.2},
+    "RA5": {"expr": {"and": ["RA2", "RA3", "RA4", "Q12"]}, "mb": 1.0, "md": 0.2},
+    "RA6": {"expr": {"or": ["Q13", "Q14", "Q15"]}, "mb": 0.7, "md": 0.1},
+    "RA7": {"expr": {"and": ["RA5", "RA6", "Q16"]}, "mb": 1.0, "md": 0.2}
+  },
+  "anaemia_rules": {
+    "RB1": {"expr": {"or": ["Q17", "Q18", "Q19", "Q20"]}, "mb": 0.8, "md": 0.2},
+    "RB2": {"expr": {"or": [{"and": ["Q21", "Q22", "Q11"]}, "Q23"]}, "mb": 0.6, "md": 0.1},
+    "RB3": {"expr": {"and": ["Q24", "Q25"]}, "mb": 0.5, "md": 0.1},
+    "RB4": {"expr": {"and": ["RB1", "RB2", "RB3"]}, "mb": 0.9, "md": 0.1},
+    "RB5": {"expr": {"or": ["Q24", "Q25"]}, "mb": 0.6, "md": 0.1},
+    "RB6": {"expr": {"and": ["RB4", "RB5"]}, "mb": 1.0, "md": 0.2}
+  }
+}
