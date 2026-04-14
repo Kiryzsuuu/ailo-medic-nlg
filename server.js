@@ -3,12 +3,71 @@ import path from 'node:path';
 import express from 'express';
 
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
+
+const LOG_LEVEL = String(process.env.LOG_LEVEL || 'info').toLowerCase();
+const LOG_STATIC = String(process.env.LOG_STATIC || '').trim().toLowerCase() === 'true';
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function shouldLogRequest(req) {
+  if (LOG_STATIC) return true;
+  const p = req?.path || req?.url || '';
+  // Default: log API calls and non-GET requests (user actions).
+  if (String(p).startsWith('/api/')) return true;
+  if (req.method && req.method.toUpperCase() !== 'GET') return true;
+  // Log the first page hit.
+  if (p === '/' || p === '/index.html') return true;
+  return false;
+}
+
+function safeJsonPreview(value, maxLen = 400) {
+  try {
+    const s = JSON.stringify(value);
+    if (typeof s !== 'string') return '';
+    return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
+  } catch {
+    return '';
+  }
+}
+
+const RAW_PORT = process.env.PORT;
+const HAS_EXPLICIT_PORT = RAW_PORT != null && String(RAW_PORT).trim() !== '';
+const PARSED_PORT = HAS_EXPLICIT_PORT ? Number(RAW_PORT) : 3000;
+const DEFAULT_PORTS = [3000, 3001, 3002, 3003, 3004, 3005];
 
 const ROOT = process.cwd();
 const PUBLIC_DIR = path.join(ROOT, 'public');
 
 app.use(express.json({ limit: '1mb' }));
+
+// Request logger (prints to terminal)
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  const id = Math.random().toString(16).slice(2, 10);
+  res.setHeader('x-request-id', id);
+  req.requestId = id;
+
+  if (LOG_LEVEL === 'debug' && shouldLogRequest(req)) {
+    const bodyPreview = safeJsonPreview(req.body);
+    const bodyMsg = bodyPreview ? ` body=${bodyPreview}` : '';
+    console.log(`[${nowIso()}] [req:${id}] -> ${req.method} ${req.originalUrl}${bodyMsg}`);
+  }
+
+  res.on('finish', () => {
+    if (!shouldLogRequest(req)) return;
+    const durMs = Number(process.hrtime.bigint() - start) / 1e6;
+    const status = res.statusCode;
+    const lvl = status >= 500 ? 'ERROR' : status >= 400 ? 'WARN' : 'INFO';
+    console.log(
+      `[${nowIso()}] [req:${id}] ${lvl} ${req.method} ${req.originalUrl} -> ${status} (${durMs.toFixed(1)}ms)`
+    );
+  });
+
+  next();
+});
+
 app.use(express.static(PUBLIC_DIR));
 
 function toFloat(s) {
@@ -1282,6 +1341,50 @@ app.post('/api/doctor-draft', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`MEDIS NLG UI running on http://localhost:${PORT}`);
+// Global error handler (must be after routes)
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  const rid = req?.requestId || '-';
+  console.error(`[${nowIso()}] [req:${rid}] UNHANDLED_ERROR ${req?.method} ${req?.originalUrl}:`, err);
+  if (res.headersSent) return;
+  res.status(500).json({ ok: false, error: 'Internal Server Error' });
 });
+
+function startServer() {
+  if (HAS_EXPLICIT_PORT) {
+    if (!Number.isFinite(PARSED_PORT) || PARSED_PORT <= 0) {
+      console.error(`Invalid PORT: '${RAW_PORT}'. Please set PORT to a valid number (e.g. 3001).`);
+      process.exitCode = 1;
+      return;
+    }
+    const server = app.listen(PARSED_PORT, () => {
+      console.log(`MEDIS NLG UI running on http://localhost:${PARSED_PORT}`);
+    });
+    server.on('error', (err) => {
+      console.error('Failed to start server:', err);
+      process.exitCode = 1;
+    });
+    return;
+  }
+
+  const portsToTry = DEFAULT_PORTS;
+  const tryListen = (idx) => {
+    const port = portsToTry[idx];
+    const server = app.listen(port, () => {
+      console.log(`MEDIS NLG UI running on http://localhost:${port}`);
+    });
+    server.on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE' && idx + 1 < portsToTry.length) {
+        console.warn(`Port ${port} is in use; trying ${portsToTry[idx + 1]}...`);
+        tryListen(idx + 1);
+        return;
+      }
+      console.error('Failed to start server:', err);
+      process.exitCode = 1;
+    });
+  };
+
+  tryListen(0);
+}
+
+startServer();

@@ -35,14 +35,31 @@ function Get-PortOwnerInfo([int]$port) {
 }
 
 function Test-PortFree([int]$port) {
+  # Node/Express on Windows commonly binds to IPv6 (::). A port can look free on
+  # 127.0.0.1 but still be in use on ::. So we test both stacks.
   try {
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
-    $listener.Start()
-    $listener.Stop()
-    return $true
+    $l4 = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $port)
+    $l4.Start()
+    $l4.Stop()
   } catch {
     return $false
   }
+
+  try {
+    $l6 = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::IPv6Any, $port)
+    # DualMode may not exist / be supported everywhere; best-effort only.
+    try { $l6.Server.DualMode = $true } catch { }
+    $l6.Start()
+    $l6.Stop()
+  } catch {
+    # If IPv6 isn't supported, ignore. If it is supported and the port is in use,
+    # this will throw and we correctly return $false.
+    $msg = "$_"
+    if ($msg -match 'Address family not supported') { return $true }
+    return $false
+  }
+
+  return $true
 }
 
 function Pick-FreePort([int]$preferredPort, [int]$maxTries = 20) {

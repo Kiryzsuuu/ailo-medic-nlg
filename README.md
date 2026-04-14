@@ -81,6 +81,16 @@ Jalankan server:
 npm run dev
 ```
 
+### Log di terminal
+
+Saat server berjalan, request dari browser ke endpoint `/api/*` akan otomatis di-log ke terminal (method, URL, status, durasi).
+
+Env var yang bisa dipakai:
+
+- `LOG_LEVEL=info` (default): log ringkas per request.
+- `LOG_LEVEL=debug`: tambahan log awal request + preview body JSON (dipotong).
+- `LOG_STATIC=true`: ikut log request file statik (CSS/JS/favicon) — biasanya lebih rame.
+
 Buka:
 
 ```text
