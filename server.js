@@ -6,6 +6,11 @@ const app = express();
 
 const LOG_LEVEL = String(process.env.LOG_LEVEL || 'info').toLowerCase();
 const LOG_STATIC = String(process.env.LOG_STATIC || '').trim().toLowerCase() === 'true';
+const OLLAMA_TIMEOUT_MS = (() => {
+  const raw = String(process.env.OLLAMA_TIMEOUT_MS || '').trim();
+  const n = raw ? Number(raw) : 120000;
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 120000;
+})();
 
 function nowIso() {
   return new Date().toISOString();
@@ -29,6 +34,17 @@ function safeJsonPreview(value, maxLen = 400) {
     return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
   } catch {
     return '';
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = OLLAMA_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const merged = { ...options, signal: controller.signal };
+    return await fetch(url, merged);
+  } finally {
+    clearTimeout(t);
   }
 }
 
@@ -805,14 +821,20 @@ function pickNextQuestions(db, suspectedConditions, answers, maxQuestions = 3) {
   return picked;
 }
 
-async function callOllama(prompt) {
+async function callOllama(prompt, ctx = {}) {
+  const rid = ctx?.rid || '-';
   const baseUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
   const model = process.env.OLLAMA_MODEL || 'medis-nlg';
   const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.1:latest';
 
+  const startedAt = Date.now();
+  if (LOG_LEVEL === 'debug') {
+    console.log(`[${nowIso()}] [req:${rid}] OLLAMA begin baseUrl=${baseUrl} model=${model} timeoutMs=${OLLAMA_TIMEOUT_MS}`);
+  }
+
   let availableModels = [];
   try {
-    const tagsRes = await fetch(`${baseUrl}/api/tags`);
+    const tagsRes = await fetchWithTimeout(`${baseUrl}/api/tags`);
     if (tagsRes.ok) {
       const tags = await tagsRes.json();
       availableModels = Array.isArray(tags?.models) ? tags.models.map(m => m?.name).filter(Boolean) : [];
@@ -830,14 +852,26 @@ async function callOllama(prompt) {
   const genUrl = `${baseUrl}/api/generate`;
   const genPayload = { model: chosenModel, prompt, stream: false };
 
-  const res = await fetch(genUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(genPayload)
-  });
+  let res;
+  try {
+    res = await fetchWithTimeout(genUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(genPayload)
+    });
+  } catch (e) {
+    const ms = Date.now() - startedAt;
+    const msg = String(e?.name || '').includes('Abort') ? `Timeout setelah ${OLLAMA_TIMEOUT_MS}ms` : String(e);
+    console.error(`[${nowIso()}] [req:${rid}] OLLAMA generate failed after ${ms}ms: ${msg}`);
+    throw new Error(`Ollama request gagal: ${msg}. (Coba naikkan OLLAMA_TIMEOUT_MS jika model lambat)`);
+  }
 
   if (res.ok) {
     const data = await res.json();
+    if (LOG_LEVEL === 'debug') {
+      const ms = Date.now() - startedAt;
+      console.log(`[${nowIso()}] [req:${rid}] OLLAMA generate ok model=${chosenModel} (${ms}ms)`);
+    }
     return String(data.response || '');
   }
 
@@ -853,14 +887,24 @@ async function callOllama(prompt) {
     ]
   };
 
-  const res2 = await fetch(chatUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(chatPayload)
-  });
+  let res2;
+  try {
+    res2 = await fetchWithTimeout(chatUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(chatPayload)
+    });
+  } catch (e) {
+    const ms = Date.now() - startedAt;
+    const msg = String(e?.name || '').includes('Abort') ? `Timeout setelah ${OLLAMA_TIMEOUT_MS}ms` : String(e);
+    console.error(`[${nowIso()}] [req:${rid}] OLLAMA chat failed after ${ms}ms: ${msg}`);
+    throw new Error(`Ollama request gagal: ${msg}. (Coba naikkan OLLAMA_TIMEOUT_MS jika model lambat)`);
+  }
 
   if (!res2.ok) {
     const text = await res2.text().catch(() => '');
+    const ms = Date.now() - startedAt;
+    console.error(`[${nowIso()}] [req:${rid}] OLLAMA http error model=${chosenModel} genStatus=${res.status} chatStatus=${res2.status} (${ms}ms)`);
     throw new Error(
       `Ollama error: ${res.status} / ${res2.status} ${text}. ` +
       `Model dipakai: ${chosenModel}. ` +
@@ -869,6 +913,10 @@ async function callOllama(prompt) {
   }
 
   const data2 = await res2.json();
+  if (LOG_LEVEL === 'debug') {
+    const ms = Date.now() - startedAt;
+    console.log(`[${nowIso()}] [req:${rid}] OLLAMA chat ok model=${chosenModel} (${ms}ms)`);
+  }
   return String(data2?.message?.content || '');
 }
 
@@ -1098,6 +1146,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.post('/api/analyze', async (req, res) => {
   const { patientName, patientAge, patientDob, labText, sex, symptomsText, answers, useOllama } = req.body || {};
+  const rid = req?.requestId || '-';
 
   const db = JSON.parse(await fs.readFile(path.join(ROOT, 'anamnesis_q.json'), 'utf-8'));
   const labs = parseLabText(labText);
@@ -1178,7 +1227,7 @@ app.post('/api/analyze', async (req, res) => {
   const wantOllama = useOllama === true;
   if (wantOllama) {
     try {
-      nlg = await callOllama(prompt);
+      nlg = await callOllama(prompt, { rid });
 
       const hasDisclaimer = /\bCatatan\s*:/i.test(nlg) || /bukan diagnosis final/i.test(nlg);
       if (!hasDisclaimer) {
@@ -1224,6 +1273,7 @@ app.post('/api/analyze', async (req, res) => {
 
 app.post('/api/doctor-draft', async (req, res) => {
   const { payload, lastData } = req.body || {};
+  const rid = req?.requestId || '-';
   const p = (payload && typeof payload === 'object') ? payload : {};
   const d = (lastData && typeof lastData === 'object') ? lastData : {};
 
@@ -1311,7 +1361,7 @@ app.post('/api/doctor-draft', async (req, res) => {
   const prompt = buildDoctorDraftPrompt({ facts, labText, nlgResponse: d.response || '' });
 
   try {
-    const raw = await callOllama(prompt);
+    const raw = await callOllama(prompt, { rid });
     const obj = tryParseJsonObject(raw) || {};
     const norm = normalizeDoctorDraft(obj);
     const enforced = enforceDoctorDraftFormat({

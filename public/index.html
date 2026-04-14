@@ -1182,6 +1182,17 @@
   }
 
   async function run() {
+    const btn = document.getElementById('btnRun');
+    const summaryEl = document.getElementById('summary');
+    const prevLabel = btn ? btn.textContent : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Memproses...';
+    }
+    if (summaryEl) {
+      summaryEl.innerHTML = '<div class="help" style="margin:0;">Memproses analisis... (jika pakai Ollama bisa lebih lama)</div>';
+    }
+
     const payload = {
       patientName: document.getElementById('patientName')?.value || '',
       patientAge: document.getElementById('patientAge')?.value || '',
@@ -1193,13 +1204,40 @@
       useOllama: document.getElementById('useOllama').value === 'true'
     };
 
-    const r = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: {'content-type':'application/json'},
-      body: JSON.stringify(payload)
-    });
+    let data = null;
+    try {
+      const r = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {'content-type':'application/json'},
+        body: JSON.stringify(payload)
+      });
 
-    const data = await r.json();
+      const text = await r.text();
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = { ok: false, error: `Response bukan JSON (${r.status}).`, raw: text };
+      }
+
+      if (!r.ok) {
+        const msg = data?.error ? String(data.error) : `HTTP ${r.status}`;
+        throw new Error(msg);
+      }
+    } catch (e) {
+      const msg = String(e?.message || e);
+      console.error('Analisis gagal:', e);
+      if (summaryEl) {
+        summaryEl.innerHTML = `<div class="help" style="margin:0; color: rgba(255,59,48,0.9);">Analisis gagal: ${esc(msg)}</div>`;
+      }
+      alert(`Analisis gagal: ${msg}`);
+      return;
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prevLabel || 'Analisis';
+      }
+    }
+
     window.__lastResult = { data, payload, ts: new Date().toISOString() };
     renderSummary(data, payload);
 
