@@ -2207,14 +2207,27 @@
     return score;
   }
 
+  function withTimeout(promise, ms, msg) {
+    const timeoutMs = Number(ms);
+    const safeMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 60000;
+    const message = String(msg || `Timeout setelah ${safeMs}ms`);
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(message)), safeMs);
+      Promise.resolve(promise)
+        .then((v) => { clearTimeout(t); resolve(v); })
+        .catch((e) => { clearTimeout(t); reject(e); });
+    });
+  }
+
   async function ocrImageBlob(blob, label) {
     if (!window.Tesseract) throw new Error('Tesseract.js belum termuat');
     // Adaptive OCR: start with the fastest pass; only add more passes if needed.
     const GOOD_SCORE = 140;
+    const OCR_TIMEOUT_MS = 60000;
 
     const dataUrlA = await preprocessImageToDataUrl(blob);
     setUploadStatus(`${label}… OCR cepat`, true);
-    const resA = await window.Tesseract.recognize(dataUrlA, 'eng', {
+    const resA = await withTimeout(window.Tesseract.recognize(dataUrlA, 'eng', {
       logger: (m) => {
         if (m && m.status) {
           const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
@@ -2224,7 +2237,7 @@
       preserve_interword_spaces: '1',
       tessedit_pageseg_mode: '6',
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
-    });
+    }), OCR_TIMEOUT_MS, `${label}: OCR cepat timeout (> ${Math.round(OCR_TIMEOUT_MS/1000)}s). Coba foto/PDF lebih jelas.`);
 
     const textA = (resA?.data?.text || '').trim();
     const scoreA = scoreOcrText(textA);
@@ -2232,7 +2245,7 @@
 
     const dataUrlB = await preprocessImageToDataUrlBinary(blob, 160);
     setUploadStatus(`${label}… OCR diperjelas`, true);
-    const resB = await window.Tesseract.recognize(dataUrlB, 'eng', {
+    const resB = await withTimeout(window.Tesseract.recognize(dataUrlB, 'eng', {
       logger: (m) => {
         if (m && m.status) {
           const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
@@ -2242,7 +2255,7 @@
       preserve_interword_spaces: '1',
       tessedit_pageseg_mode: '11',
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
-    });
+    }), OCR_TIMEOUT_MS, `${label}: OCR diperjelas timeout (> ${Math.round(OCR_TIMEOUT_MS/1000)}s).`);
 
     const textB = (resB?.data?.text || '').trim();
     const scoreB = scoreOcrText(textB);
@@ -2251,7 +2264,7 @@
     // Last resort: add Indonesian language model (slower) + alternative threshold.
     const dataUrlC = await preprocessImageToDataUrlBinary(blob, 135);
     setUploadStatus(`${label}… OCR maksimal`, true);
-    const resC = await window.Tesseract.recognize(dataUrlC, 'eng+ind', {
+    const resC = await withTimeout(window.Tesseract.recognize(dataUrlC, 'eng+ind', {
       logger: (m) => {
         if (m && m.status) {
           const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
@@ -2261,7 +2274,7 @@
       preserve_interword_spaces: '1',
       tessedit_pageseg_mode: '6',
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
-    });
+    }), OCR_TIMEOUT_MS, `${label}: OCR maksimal timeout (> ${Math.round(OCR_TIMEOUT_MS/1000)}s).`);
 
     const textC = (resC?.data?.text || '').trim();
     const scored = [
@@ -2282,8 +2295,8 @@
 
     if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
       await ensurePdfJsLoaded();
-      const buf = await file.arrayBuffer();
-      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      const buf = await withTimeout(file.arrayBuffer(), 20000, 'Gagal membaca PDF (timeout saat membaca file).');
+      const pdf = await withTimeout(window.pdfjsLib.getDocument({ data: buf }).promise, 30000, 'Gagal membuka PDF (timeout).');
       let out = '';
 
       // Performance guardrails: many PDFs are multi-page; reading all pages can be slow.
@@ -2298,8 +2311,8 @@
 
       for (let pageNum = 1; pageNum <= pageLimit; pageNum++) {
         setUploadStatus(`Membaca PDF… halaman ${pageNum}/${pageLimit}`, true);
-        const page = await pdf.getPage(pageNum);
-        const content = await page.getTextContent();
+        const page = await withTimeout(pdf.getPage(pageNum), 15000, `Timeout ambil halaman PDF ${pageNum}.`);
+        const content = await withTimeout(page.getTextContent(), 20000, `Timeout baca teks PDF halaman ${pageNum}.`);
         const strings = content.items.map((it) => (it && it.str ? it.str : '')).filter(Boolean);
         out += strings.join(' ') + '\n';
 
@@ -2311,16 +2324,16 @@
 
       // Fallback for scanned PDF: render first page to image and OCR.
       setUploadStatus('PDF tampak hasil scan, mencoba OCR halaman 1…', true);
-      const page = await pdf.getPage(1);
+      const page = await withTimeout(pdf.getPage(1), 15000, 'Timeout ambil halaman 1 PDF.');
       const viewport = page.getViewport({ scale: 1.5 });
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      await withTimeout(page.render({ canvasContext: ctx, viewport }).promise, 30000, 'Timeout render PDF untuk OCR.');
+      const blob = await withTimeout(new Promise((resolve) => canvas.toBlob(resolve, 'image/png')), 10000, 'Timeout membuat gambar OCR.');
       if (!blob) throw new Error('Gagal membuat gambar dari PDF');
-      return await ocrImageBlob(blob, 'OCR PDF');
+      return await withTimeout(ocrImageBlob(blob, 'OCR PDF'), 120000, 'OCR PDF terlalu lama (timeout > 120s).');
     }
 
     if (type.startsWith('image/')) {
