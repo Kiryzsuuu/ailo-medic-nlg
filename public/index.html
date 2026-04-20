@@ -2389,13 +2389,8 @@
     if (!file) return;
     setUploadStatus(`Memproses: ${file.name}`, true);
     try {
-      // Try to capture attachment preview for PDF export page-1.
-      try {
-        const att = await fileToAttachmentPreview(file);
-        window.__uploadedAttachment = att;
-      } catch {
-        window.__uploadedAttachment = null;
-      }
+      // Do not block analysis on attachment preview generation.
+      window.__uploadedAttachment = null;
 
       const text = await fileToText(file);
       if (!text || text.trim().length < 2) {
@@ -2408,6 +2403,17 @@
       // The hematology lab table won't be filled (different panel), but analysis can still run.
       labTextEl.value = looksLikeUrinalysis(trimmed) ? summarizeUrinalysis(trimmed) : trimmed;
       setUploadStatus(`Selesai: ${file.name} (${labTextEl.value.length} karakter)`, false);
+
+      // Build attachment preview in background for PDF export, without delaying analysis.
+      void (async () => {
+        try {
+          const att = await withTimeout(fileToAttachmentPreview(file), 12000, 'Attachment preview timeout');
+          window.__uploadedAttachment = att;
+        } catch {
+          window.__uploadedAttachment = null;
+        }
+      })();
+
       await run();
     } catch (e) {
       setUploadStatus(`Gagal: ${file.name} — ${e?.message || e}`, false);
