@@ -952,54 +952,131 @@ function tryParseJsonObject(text) {
     const m = raw.match(/\{[\s\S]*\}/);
     if (!m) return null;
     try {
- 
-  async function callOllama(prompt) {
-    throw new Error('Ollama backend sudah dihapus. Gunakan OpenAI-compatible API.');
-  }
-
-  function resolveNlgProvider() {
-    return 'openai';
-  }
-
-  async function callOpenAICompatible(prompt) {
-    const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
-    if (!apiKey) throw new Error('OPENAI_API_KEY belum di-set.');
-
-    const base = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').trim().replace(/\/$/, '');
-    const model = String(process.env.OPENAI_MODEL || '').trim();
-    if (!model) throw new Error('OPENAI_MODEL belum di-set (contoh: gpt-4o-mini).');
-
-    const url = `${base}/chat/completions`;
-    const payload = {
-      model,
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: 'Anda adalah MEDIS-NLG ANALYST.' },
-        { role: 'user', content: prompt }
-      ]
-    };
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`OpenAI-compatible error: ${res.status} ${text}`);
+      const obj2 = JSON.parse(m[0]);
+      return (obj2 && typeof obj2 === 'object') ? obj2 : null;
+    } catch {
+      return null;
     }
+  }
+}
 
-    const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content;
-    return String(content || '');
+function normalizeToLines(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') {
+    return String(value)
+      .replaceAll('\\r\\n', '\n')
+      .replaceAll('\\n', '\n')
+      .replaceAll('\\t', '\t')
+      .trim();
+  }
+  if (Array.isArray(value)) {
+    return value.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n').trim();
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value);
+    return keys.map(k => {
+      const v = value[k];
+      const vv = (typeof v === 'string') ? v.trim() : (v == null ? '' : String(v));
+      return vv ? `${k}: ${vv}` : `${k}:`;
+    }).join('\n').trim();
+  }
+  return String(value).trim();
+}
+
+function normalizeDoctorDraft(draft) {
+  const execRaw = draft?.exec;
+  const corrRaw = draft?.corr;
+  const conclRaw = draft?.conclusion;
+
+  let exec = '';
+  if (execRaw && typeof execRaw === 'object' && !Array.isArray(execRaw)) {
+    const get = (...keys) => {
+      for (const k of keys) {
+        for (const kk of Object.keys(execRaw)) {
+          if (kk.toLowerCase().trim() === k.toLowerCase().trim()) {
+            return normalizeToLines(execRaw[kk]);
+          }
+        }
+      }
+      return '';
+    };
+    const keluhan = get('Keluhan/Gejala', 'Keluhan', 'Gejala');
+    const temuan = get('Temuan utama hematologi (ringkas)', 'Temuan utama', 'Temuan');
+    const dugaan = get('Dugaan berbasis hematologi', 'Dugaan');
+    const narasi = get('Narasi sistem', 'Narasi');
+    const kesAwal = get('Kesimpulan awal');
+    exec = [
+      `Keluhan/Gejala: ${safeString(keluhan) || '(tidak disebutkan)'}.`,
+      `Temuan utama hematologi (ringkas): ${safeString(temuan) || '(tidak ada)'}.`,
+      `Dugaan berbasis hematologi: ${safeString(dugaan) || '(tidak ada)'}.`,
+      narasi ? `Narasi sistem: ${safeString(narasi)}` : 'Narasi sistem: (tidak ada).',
+      `Kesimpulan awal: ${safeString(kesAwal) || '(tidak ada)'}.`
+    ].join('\n');
+  } else {
+    exec = normalizeToLines(execRaw);
   }
 
-  async function callNlgProvider(prompt) {
-    return callOpenAICompatible(prompt);
+  const corr = normalizeToLines(corrRaw);
+  const conclusion = normalizeToLines(conclRaw);
+
+  return { exec: exec.trim(), corr: corr.trim(), conclusion: conclusion.trim() };
+}
+
+function enforceDoctorDraftFormat({ exec, corr, conclusion, answeredCount, dxLabels, fallbacks }) {
+  const safeAnswered = Number.isFinite(answeredCount) ? answeredCount : 0;
+  const dxText = (Array.isArray(dxLabels) && dxLabels.length) ? dxLabels.join('; ') : '(tidak ada dugaan khusus)';
+
+  const execText = normalizeToLines(exec);
+  const lines = execText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const pick = (label) => {
+    const want = `${String(label).toLowerCase().trim()}:`;
+    for (const l of lines) {
+      const ll = String(l).toLowerCase().trim();
+      if (!ll.startsWith(want)) continue;
+      return String(l).slice(want.length).trim();
+    }
+    return '';
+  };
+
+  const fb = (fallbacks && typeof fallbacks === 'object') ? fallbacks : {};
+
+  const keluhanV = pick('Keluhan/Gejala') || safeString(fb.symptoms);
+  const temuanV = pick('Temuan utama hematologi (ringkas)') || safeString(fb.labSummary);
+  const dugaanV = pick('Dugaan berbasis hematologi') || safeString(fb.dxShort) || dxText;
+  const narasiV = pick('Narasi sistem') || safeString(fb.narasi);
+  const kesAwalV = pick('Kesimpulan awal') || safeString(fb.kesimpulanAwal);
+
+  const ensureDot = (s) => {
+    const t = safeString(s);
+    if (!t) return t;
+    return /[.!?ÔÇª]$/.test(t) ? t : `${t}.`;
+  };
+
+  exec = [
+    `Keluhan/Gejala: ${ensureDot(keluhanV || '(tidak disebutkan)')}`,
+    `Temuan utama hematologi (ringkas): ${ensureDot(temuanV || '(tidak ada)')}`,
+    `Dugaan berbasis hematologi: ${ensureDot(dugaanV || '(tidak ada)')}`,
+    `Narasi sistem: ${ensureDot(narasiV || '(tidak ada)')}`,
+    `Kesimpulan awal: ${ensureDot(kesAwalV || '(tidak ada)')}`
+  ].join('\n');
+
+  const corrLines = String(corr || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const defaultCorr = [
+    `Integrasi anamnesis: ${safeAnswered} jawaban anamnesis terisi.`,
+    'Korelasi klinis perlu disesuaikan dengan pemeriksaan fisik, riwayat penyakit, obat, dan tren hasil lab serial.',
+    'Bila ada tanda bahaya (perdarahan, penurunan kesadaran, sesak, hipotensi), pertimbangkan rujukan/penanganan segera.'
+  ];
+  if (corrLines.length < 3 || !/^Integrasi\s+anamnesis\s*:/i.test(corrLines[0] || '')) {
+    corr = defaultCorr.join('\n');
+  }
+
+  const conclLines = String(conclusion || '').split(/\r?\n/).map(l => l.trim());
+  let bullet = conclLines.find(l => /^-\s+/.test(l)) || `- ${dxText}.`;
+  if (!bullet.endsWith('.')) bullet = `${bullet}.`;
+  conclusion = ['Kesimpulan sementara:', bullet].join('\n');
+
+  return {
+    exec: String(exec || '').trim(),
     corr: String(corr || '').trim(),
     conclusion: String(conclusion || '').trim()
   };
