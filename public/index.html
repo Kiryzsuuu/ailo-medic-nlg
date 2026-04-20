@@ -476,6 +476,135 @@
   const labFileEl = document.getElementById('labFile');
   const dropAreaEl = document.getElementById('dropArea');
   const uploadStatusEl = document.getElementById('uploadStatus');
+
+  const UI_BUILD = '2026-04-20-urine-autofill-1';
+  const buildInfoEl = document.getElementById('buildInfo');
+  if (buildInfoEl) buildInfoEl.textContent = `UI ${UI_BUILD}`;
+
+  function looksLikeUrinalysis(text) {
+    const t = String(text || '').toLowerCase();
+    return t.includes('urine lengkap') || t.includes('urinalisis') || (t.includes('sedimen') && t.includes('berat jenis'));
+  }
+
+  function summarizeUrinalysis(text) {
+    const raw = String(text || '').replace(/\u00a0/g, '');
+    const lines = raw.split(/\r?\n/).map(s => String(s || '').trim()).filter(Boolean);
+
+    // Capture patient identity if present.
+    const joined = lines.join(' ');
+    const name = (joined.match(/\bNAMA\s*:\s*([A-Z][A-Z\s.'-]{2,})\b/) || [])[1];
+    const sex = (joined.match(/\bJENIS\s+KELAMIN\s*:\s*([A-Z\-]+)\b/) || [])[1];
+    const age = (joined.match(/\bUMUR\s*:\s*([^\n]+?)\b(?:TANGGAL\s+LAHIR|CARA\s+BAYAR|NO\.|$)/) || [])[1];
+
+    // Extract the section starting at "Urine Lengkap" until "HASIL EKSPERTIS" or end.
+    const startIdx = lines.findIndex(l => /\burine\s+lengkap\b/i.test(l));
+    const endIdx0 = lines.findIndex(l => /hasil\s+ekspertis/i.test(l));
+    const endIdx = endIdx0 >= 0 ? endIdx0 : lines.length;
+
+    const body = (startIdx >= 0 ? lines.slice(startIdx) : lines).slice(0, Math.max(0, endIdx - (startIdx >= 0 ? startIdx : 0)));
+
+    // Parse "Parameter  Hasil ..." style: take first token(s) as key until first numeric/flag-ish token.
+    const items = [];
+    for (const l of body) {
+      if (/^(hasil|pemeriksaan|metoda|nilai\s+rujukan|urine\s+lengkap|sedimen)\b/i.test(l)) continue;
+      // Skip obvious headers/footers.
+      if (/^(kota\s+|pemeriksa\b|dokter\b|ruangan\b|indikasi\b|tgl\b|nomor\b|laboratorium\b|klinik\b)/i.test(l)) continue;
+
+      // Common pattern: "Berat Jenis 1025 1005 - 1030 N"
+      const m = l.match(/^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s\/%\-\(\)\.]{1,40}?)\s+([+\-]?[0-9]+(?:[\.,][0-9]+)?|Negatif|Positif|Kuning|Agak\s+Keruh|Jernih)\b/i);
+      if (!m) continue;
+      const key = m[1].trim().replace(/\s+/g, ' ');
+      const val = m[2].trim().replace(',', '.');
+      items.push([key, val]);
+    }
+
+    // De-duplicate by key, keep first occurrence.
+    const seen = new Set();
+    const uniq = [];
+    for (const [k, v] of items) {
+      const kk = k.toLowerCase();
+      if (seen.has(kk)) continue;
+      seen.add(kk);
+      uniq.push([k, v]);
+    }
+
+    const out = [];
+    out.push('Jenis pemeriksaan: Urine Lengkap');
+    if (name) out.push(`Nama: ${name.trim()}`);
+    if (sex) out.push(`Jenis kelamin: ${sex.trim()}`);
+    if (age) out.push(`Umur: ${age.trim()}`);
+    out.push('');
+
+    if (uniq.length) {
+      out.push('Hasil:');
+      for (const [k, v] of uniq) out.push(`${k}: ${v}`);
+    } else {
+      out.push('Hasil: (gagal mem-parsing otomatis, memakai teks mentah)');
+      out.push(raw.trim());
+    }
+
+    return out.join('\n').trim();
+  }
+
+  function loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+      // If already present, resolve immediately.
+      const existing = Array.from(document.scripts || []).find((s) => s && s.src === src);
+      if (existing) {
+        if ((existing.dataset && existing.dataset.loaded === '1') || window.pdfjsLib) return resolve();
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error(`Gagal memuat: ${src}`)), { once: true });
+        return;
+      }
+
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.dataset.loaded = '0';
+      s.onload = () => {
+        s.dataset.loaded = '1';
+        resolve();
+      };
+      s.onerror = () => reject(new Error(`Gagal memuat: ${src}`));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensurePdfJsLoaded() {
+    if (window.pdfjsLib) return;
+
+    // CDN fallback chain: jsDelivr -> unpkg -> cdnjs
+    const candidates = [
+      {
+        lib: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js',
+        worker: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js',
+      },
+      {
+        lib: 'https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.min.js',
+        worker: 'https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.js',
+      },
+      {
+        lib: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js',
+        worker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js',
+      },
+    ];
+
+    let lastErr = null;
+    for (const c of candidates) {
+      try {
+        await loadScriptOnce(c.lib);
+        if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = c.worker;
+        }
+        if (window.pdfjsLib) return;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    const hint = 'PDF.js gagal dimuat. Cek koneksi internet / blokir CDN (jsdelivr/unpkg/cdnjs) / CSP.';
+    throw new Error(lastErr?.message ? `${hint} (${lastErr.message})` : hint);
+  }
     // Attachment (uploaded clinic report) preview for PDF page-1.
     window.__uploadedAttachment = null; // { fileName, mime, pageCount?, dataUrl }
 
@@ -2007,10 +2136,10 @@
 
   async function preprocessImageToDataUrl(blob) {
     const img = await loadImageFromBlob(blob);
-    // Upscale small screenshots to help OCR; downscale very large images.
-    const targetW = 1800;
-    const maxW = 2600;
-    const scale = img.width < targetW ? (targetW / img.width) : (img.width > maxW ? (maxW / img.width) : 1);
+    // Keep preprocessing lightweight: avoid heavy upscaling (slow) and cap large images.
+    // OCR accuracy is usually fine for lab tables at ~1400–1800px width.
+    const maxW = 1800;
+    const scale = img.width > maxW ? (maxW / img.width) : 1;
     const w = Math.max(1, Math.round(img.width * scale));
     const h = Math.max(1, Math.round(img.height * scale));
 
@@ -2038,9 +2167,8 @@
 
   async function preprocessImageToDataUrlBinary(blob, threshold = 150) {
     const img = await loadImageFromBlob(blob);
-    const targetW = 2200;
-    const maxW = 3200;
-    const scale = img.width < targetW ? (targetW / img.width) : (img.width > maxW ? (maxW / img.width) : 1);
+    const maxW = 2000;
+    const scale = img.width > maxW ? (maxW / img.width) : 1;
     const w = Math.max(1, Math.round(img.width * scale));
     const h = Math.max(1, Math.round(img.height * scale));
 
@@ -2081,14 +2209,16 @@
 
   async function ocrImageBlob(blob, label) {
     if (!window.Tesseract) throw new Error('Tesseract.js belum termuat');
-    // Multi-pass OCR: normal + binary + table-tuned
+    // Adaptive OCR: start with the fastest pass; only add more passes if needed.
+    const GOOD_SCORE = 140;
+
     const dataUrlA = await preprocessImageToDataUrl(blob);
-    setUploadStatus(`${label}… pass 1/2`, true);
-    const resA = await window.Tesseract.recognize(dataUrlA, 'eng+ind', {
+    setUploadStatus(`${label}… OCR cepat`, true);
+    const resA = await window.Tesseract.recognize(dataUrlA, 'eng', {
       logger: (m) => {
         if (m && m.status) {
           const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
-          setUploadStatus(`${label}… pass 1/2: ${m.status}${pct}`, true);
+          setUploadStatus(`${label}… OCR cepat: ${m.status}${pct}`, true);
         }
       },
       preserve_interword_spaces: '1',
@@ -2096,13 +2226,17 @@
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
     });
 
+    const textA = (resA?.data?.text || '').trim();
+    const scoreA = scoreOcrText(textA);
+    if (scoreA >= GOOD_SCORE) return textA;
+
     const dataUrlB = await preprocessImageToDataUrlBinary(blob, 160);
-    setUploadStatus(`${label}… pass 2/3`, true);
-    const resB = await window.Tesseract.recognize(dataUrlB, 'eng+ind', {
+    setUploadStatus(`${label}… OCR diperjelas`, true);
+    const resB = await window.Tesseract.recognize(dataUrlB, 'eng', {
       logger: (m) => {
         if (m && m.status) {
           const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
-          setUploadStatus(`${label}… pass 2/3: ${m.status}${pct}`, true);
+          setUploadStatus(`${label}… OCR diperjelas: ${m.status}${pct}`, true);
         }
       },
       preserve_interword_spaces: '1',
@@ -2110,23 +2244,25 @@
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
     });
 
+    const textB = (resB?.data?.text || '').trim();
+    const scoreB = scoreOcrText(textB);
+    if (scoreB >= GOOD_SCORE) return textB;
+
+    // Last resort: add Indonesian language model (slower) + alternative threshold.
     const dataUrlC = await preprocessImageToDataUrlBinary(blob, 135);
-    setUploadStatus(`${label}… pass 3/3`, true);
+    setUploadStatus(`${label}… OCR maksimal`, true);
     const resC = await window.Tesseract.recognize(dataUrlC, 'eng+ind', {
       logger: (m) => {
         if (m && m.status) {
           const pct = typeof m.progress === 'number' ? ` (${Math.round(m.progress * 100)}%)` : '';
-          setUploadStatus(`${label}… pass 3/3: ${m.status}${pct}`, true);
+          setUploadStatus(`${label}… OCR maksimal: ${m.status}${pct}`, true);
         }
       },
       preserve_interword_spaces: '1',
       tessedit_pageseg_mode: '6',
-      // Slightly relax whitelist for table headers like "10^9/L"
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./,:;%()[]+-=^_\n ',
     });
 
-    const textA = (resA?.data?.text || '').trim();
-    const textB = (resB?.data?.text || '').trim();
     const textC = (resC?.data?.text || '').trim();
     const scored = [
       { t: textA, s: scoreOcrText(textA) },
@@ -2145,17 +2281,29 @@
     }
 
     if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
-      if (!window.pdfjsLib) throw new Error('pdf.js belum termuat');
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
+      await ensurePdfJsLoaded();
       const buf = await file.arrayBuffer();
       const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
       let out = '';
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        setUploadStatus(`Membaca PDF… halaman ${pageNum}/${pdf.numPages}`, true);
+
+      // Performance guardrails: many PDFs are multi-page; reading all pages can be slow.
+      // We stop early once we have enough text to parse labs.
+      const MAX_PDF_PAGES_TO_READ = 10;
+      const EARLY_STOP_CHARS = 2500;
+
+      const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES_TO_READ);
+      if (pdf.numPages > pageLimit) {
+        setUploadStatus(`Membaca PDF… (dibatasi ${pageLimit} dari ${pdf.numPages} halaman)`, true);
+      }
+
+      for (let pageNum = 1; pageNum <= pageLimit; pageNum++) {
+        setUploadStatus(`Membaca PDF… halaman ${pageNum}/${pageLimit}`, true);
         const page = await pdf.getPage(pageNum);
         const content = await page.getTextContent();
         const strings = content.items.map((it) => (it && it.str ? it.str : '')).filter(Boolean);
         out += strings.join(' ') + '\n';
+
+        if (out.length >= EARLY_STOP_CHARS) break;
       }
 
       const trimmed = out.trim();
@@ -2164,7 +2312,7 @@
       // Fallback for scanned PDF: render first page to image and OCR.
       setUploadStatus('PDF tampak hasil scan, mencoba OCR halaman 1…', true);
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 2.0 });
+      const viewport = page.getViewport({ scale: 1.5 });
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -2200,12 +2348,11 @@
 
     // For PDF, render page 1 to image using pdf.js.
     if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
-      if (!window.pdfjsLib) throw new Error('pdf.js belum termuat');
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
+      await ensurePdfJsLoaded();
       const buf = await file.arrayBuffer();
       const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 2.0 });
+      const viewport = page.getViewport({ scale: 1.25 });
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -2236,7 +2383,11 @@
         setUploadStatus(`Teks tidak terbaca dari ${file.name}. Coba foto lebih jelas / PDF text-based.`, false);
         return;
       }
-      labTextEl.value = text.trim();
+
+      const trimmed = text.trim();
+      // If the uploaded document is a urinalysis report, auto-summarize into key/value lines.
+      // The hematology lab table won't be filled (different panel), but analysis can still run.
+      labTextEl.value = looksLikeUrinalysis(trimmed) ? summarizeUrinalysis(trimmed) : trimmed;
       setUploadStatus(`Selesai: ${file.name} (${labTextEl.value.length} karakter)`, false);
       await run();
     } catch (e) {

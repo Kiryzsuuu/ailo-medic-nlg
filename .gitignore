@@ -20,6 +20,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Documents (do not commit patient reports)
+*.pdf
+
 # Secrets
 .env
 .env.*
