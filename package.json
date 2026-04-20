@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "node server.js",
+    "check:env": "node scripts/check_env.js",
     "start": "node server.js",
     "start:win": "powershell -NoProfile -ExecutionPolicy Bypass -File START.ps1"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
   }
 }

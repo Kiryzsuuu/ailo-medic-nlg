@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -8,9 +9,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import requests
 
 try:
-    import ollama  # type: ignore
+    from dotenv import load_dotenv  # type: ignore
 except Exception:  # pragma: no cover
-    ollama = None
+    load_dotenv = None
+
+ollama = None  # kept for backward compatibility; Ollama backend removed
 
 
 @dataclass(frozen=True)
@@ -99,8 +102,8 @@ def parse_lab_text(text: str) -> Dict[str, Tuple[float, Optional[str]]]:
             # Platelets commonly ~10..2000; prefer larger value over unit exponents
             candidates = [v for v in values if _in_range(v, 10.0, 2000.0) and v not in {3.0, 10.0}]
             chosen_pool = candidates or values
-            # Prefer the first plausible value (usually the Result column in OCR tables).
-            return chosen_pool[0]
+            # In compact single-line text, multiple numbers can be present; platelets are typically the largest.
+            return max(chosen_pool)
 
         return values[0]
 
@@ -114,6 +117,25 @@ def parse_lab_text(text: str) -> Dict[str, Tuple[float, Optional[str]]]:
             ll = ln.lower()
             if not any(s in ll for s in syns):
                 continue
+
+            # Prefer the number that appears immediately after the matched token.
+            # This fixes compact inputs like: "Hb 8.8, Leukosit 13.14, Trombosit 370".
+            picked_value: Optional[float] = None
+            for syn in syns:
+                token = syn.strip().lower()
+                if not token:
+                    continue
+                pattern = rf"\b{re.escape(token)}\b\s*[:=\-]?\s*(-?\d+(?:[\.,]\d+)?)"
+                m = re.search(pattern, ll, flags=re.IGNORECASE)
+                if m:
+                    picked_value = _to_float(m.group(1))
+                    if picked_value is not None:
+                        break
+
+            if picked_value is not None:
+                out[canonical] = (picked_value, None)
+                break
+
             nums = re.findall(r"-?\d+(?:[\.,]\d+)?", ll)
             best = _pick_best(canonical, nums)
             if best is not None:
@@ -443,61 +465,51 @@ def format_description(interpretation: InterpretationResult) -> str:
     return f"Hasil pemeriksaan hematologi Anda menunjukkan komponen yang tidak normal: {joined}."
 
 
-def call_ollama_generate(
-    model: str,
+def call_ollama_generate(*_args: Any, **_kwargs: Any) -> str:
+    raise RuntimeError("Backend Ollama sudah dihapus. Gunakan OpenAI-compatible API.")
+
+
+def call_openai_compatible_chat(
     prompt: str,
-    url: str = "http://localhost:11434/api/generate",
+    *,
+    model: str,
+    base_url: str = "https://api.openai.com/v1",
+    api_key: Optional[str] = None,
     timeout_s: int = 60,
 ) -> str:
-    # Prefer official python client if available.
-    if ollama is not None:
-        try:
-            # ollama.generate uses the locally running Ollama daemon.
-            resp = ollama.generate(model=model, prompt=prompt)
-            return str(resp.get("response", ""))
-        except Exception:
-            # Fall back to raw HTTP if client fails (e.g., custom base URL).
-            pass
+    key = (api_key or os.getenv("OPENAI_API_KEY") or "").strip()
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY belum di-set.")
 
-    generate_payload = {
+    base = (base_url or "https://api.openai.com/v1").strip().rstrip("/")
+    if not model:
+        raise RuntimeError("OPENAI_MODEL belum di-set (contoh: gpt-4o-mini).")
+
+    url = f"{base}/chat/completions"
+    payload = {
         "model": model,
-        "prompt": prompt,
-        "stream": False,
+        "temperature": 0.2,
+        "messages": [
+            {"role": "system", "content": "Anda adalah MEDIS-NLG ANALYST."},
+            {"role": "user", "content": prompt},
+        ],
     }
 
     try:
-        r = requests.post(url, json=generate_payload, timeout=timeout_s)
-        if r.status_code == 404:
-            raise requests.HTTPError("404", response=r)
+        r = requests.post(
+            url,
+            json=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {key}",
+            },
+            timeout=timeout_s,
+        )
         r.raise_for_status()
         data = r.json()
-        return str(data.get("response", ""))
-    except requests.HTTPError as e:
-        # Some Ollama versions/routers expose /api/chat instead of /api/generate.
-        status = getattr(e.response, "status_code", None)
-        if status != 404:
-            raise
-
-        chat_url = re.sub(r"/api/generate$", "/api/chat", url)
-        chat_payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "Anda adalah MEDIS-NLG ANALYST."},
-                {"role": "user", "content": prompt},
-            ],
-            "stream": False,
-        }
-
-        r2 = requests.post(chat_url, json=chat_payload, timeout=timeout_s)
-        r2.raise_for_status()
-        data2 = r2.json()
-        message = (data2.get("message") or {})
-        return str(message.get("content", ""))
+        return str((((data.get("choices") or [{}])[0]).get("message") or {}).get("content") or "")
     except requests.RequestException as e:
-        raise RuntimeError(
-            "Gagal terhubung ke Ollama. Pastikan `ollama serve` berjalan dan URL benar. "
-            f"Detail: {e}"
-        ) from e
+        raise RuntimeError(f"Gagal memanggil OpenAI-compatible endpoint. Detail: {e}") from e
 
 
 def build_prompt(
@@ -600,7 +612,9 @@ def medis_analyst(
 
     response_text = ""
     if use_ollama:
-        response_text = call_ollama_generate(model=model, prompt=prompt)
+        openai_model = (os.getenv("OPENAI_MODEL") or "").strip() or model
+        openai_base = (os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1").strip()
+        response_text = call_openai_compatible_chat(prompt, model=openai_model, base_url=openai_base)
     else:
         # Fallback: deterministic text without LLM.
         response_text = format_description(interpretation)
@@ -626,6 +640,9 @@ def medis_analyst(
 
 
 if __name__ == "__main__":
+    if load_dotenv is not None:
+        # Load local secrets/config from .env if present.
+        load_dotenv()
     # Quick manual test
     example_lab = "Hb 8.8, Leukosit 13.14, Trombosit 370"
     example_symptoms = "pusing dan lemas"
@@ -652,7 +669,7 @@ if __name__ == "__main__":
         print(result["response"].strip())
         print("\n---\n")
         print(
-            "Catatan: mode offline aktif karena Ollama tidak terdeteksi di http://localhost:11434. "
-            "Jalankan `ollama serve` atau sesuaikan URL/port bila berbeda. "
+            "Catatan: mode offline aktif karena LLM (OpenAI-compatible) tidak dapat diakses. "
+            "Pastikan OPENAI_API_KEY/OPENAI_MODEL sudah di-set. "
             f"Detail error: {e}"
         )

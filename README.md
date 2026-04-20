@@ -1,28 +1,8 @@
-# MEDIS NLG (Ollama)
+# MEDIS NLG (OpenAI-compatible API)
 
 Folder ini berisi template implementasi chatbot yang melakukan **Data Interpretation** (angka hasil lab) dan **Anamnesis** (tanya jawab gejala) dalam 1 alur.
 
-## 1) Buat model Ollama
-
-Pastikan Ollama sudah berjalan:
-
-```bash
-ollama serve
-```
-
-Buat model kustom:
-
-```bash
-ollama create medis-nlg -f Modelfile
-```
-
-Tes cepat:
-
-```bash
-ollama run medis-nlg
-```
-
-## 2) Jalankan via Python (API Ollama)
+## 1) Jalankan via Python (OpenAI-compatible)
 
 Install dependency:
 
@@ -41,13 +21,13 @@ Script akan:
 - menandai abnormal/kritis (aturan ringkas sesuai prompt)
 - memilih 2–3 pertanyaan anamnesis dari `anamnesis_q.json` (Q1–Q27)
 - menghitung CF berbasis rule Table V–VIII (RA1–RA7 & RB1–RB6) bila jawaban Q tersedia
-- memanggil Ollama `http://localhost:11434/api/generate`
+- memanggil OpenAI-compatible endpoint `/chat/completions`
 
 ## 3) Kustomisasi pertanyaan (Q1–Q27)
 
 File `anamnesis_q.json` sudah berisi Q1–Q27 dan skala N/R/S/O/F/A sesuai Table IV–V.
 
-## 4) Frontend Node.js
+## 2) Frontend Node.js
 
 ## 0) One-button start (Windows)
 
@@ -95,36 +75,35 @@ Buka:
 
 ```text
 http://localhost:3000
-```
 
-Jika ingin memakai Ollama untuk NLG dari UI:
+## Konfigurasi API key (wajib untuk LLM)
 
-1. Jalankan Ollama:
+Project ini memakai provider OpenAI-compatible (mis. OpenAI, OpenRouter, Together, atau server OpenAI-compatible lokal seperti LM Studio).
 
-```bash
-ollama serve
-```
+Disarankan: buat file `.env` dengan menyalin `.env.example`, lalu isi `OPENAI_API_KEY`.
 
-2. Pastikan model ada:
+### A) UI (Node.js)
 
-Tarik (download) model dasar dulu (contoh):
+Windows PowerShell:
 
-```bash
-ollama pull llama3
-```
-
-Lalu buat model kustom:
-
-```bash
-ollama create medis-nlg -f Modelfile
-```
-
-3. Jalankan server Node dengan env var:
-
-```bash
-set OLLAMA_URL=http://localhost:11434
-set OLLAMA_MODEL=medis-nlg
+```powershell
+$env:NLG_PROVIDER = "openai"
+$env:OPENAI_API_KEY = "<API_KEY_ANDA>"
+$env:OPENAI_BASE_URL = "https://api.openai.com/v1"  # sesuaikan bila pakai OpenRouter/LM Studio
+$env:OPENAI_MODEL = "gpt-4o-mini"                  # sesuaikan sesuai provider
 npm run dev
+```
+
+Catatan: toggle `useOllama` di UI tetap dipakai sebagai “aktifkan LLM”. Saat aktif, backend akan memanggil OpenAI-compatible API.
+
+### B) CLI Python
+
+```powershell
+$env:NLG_PROVIDER = "openai"
+$env:OPENAI_API_KEY = "<API_KEY_ANDA>"
+$env:OPENAI_BASE_URL = "https://api.openai.com/v1"
+$env:OPENAI_MODEL = "gpt-4o-mini"
+python medis_nlg.py
 ```
 
 ## Catatan medis

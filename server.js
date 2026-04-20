@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import 'dotenv/config';
 import express from 'express';
 
 const app = express();
@@ -164,8 +165,10 @@ function parseLabText(text) {
     if (canonical === 'trombosit') {
       // Platelets typically ~10..2000 (x10^3/uL)
       const candidates = values.filter(v => inRange(v, 10, 2000) && v !== 10 && v !== 3);
-      // Prefer the first plausible value on the row (usually the Result column).
-      return (candidates.length ? candidates : values)[0];
+      // In single-line compact text (e.g. "Hb 8.8, Leukosit 13.14, Trombosit 370"),
+      // multiple numbers can appear; platelets are typically the largest among them.
+      const pool = (candidates.length ? candidates : values);
+      return pool.reduce((mx, v) => (v > mx ? v : mx), pool[0]);
     }
 
     if (canonical === 'rbc') {
@@ -305,6 +308,24 @@ function parseLabText(text) {
     for (const line of lines) {
       const ll = line.toLowerCase();
       if (!syns.some(s => matchesSynonym(ll, s))) continue;
+
+      // Prefer the number that appears immediately after the matched token.
+      // This fixes compact single-line inputs like: "Hb 8.8, Leukosit 13.14, Trombosit 370".
+      for (const syn of syns) {
+        const token = String(syn).toLowerCase().trim();
+        if (!token) continue;
+        const escaped = token.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const re = new RegExp(`\\b${escaped}\\b\\s*[:=\\-]?\\s*(-?\\d+(?:[\\.,]\\d+)?)`, 'i');
+        const m = ll.match(re);
+        if (m) {
+          const v = toFloat(m[1]);
+          if (v != null) {
+            const ref = parseInlineRef(ll);
+            return { value: v, unit: null, ref };
+          }
+        }
+      }
+
       const nums = ll.match(/-?\d+(?:[\.,]\d+)?/g) || [];
       const value = pickBest(canonical, nums);
       if (value != null) {
@@ -821,103 +842,53 @@ function pickNextQuestions(db, suspectedConditions, answers, maxQuestions = 3) {
   return picked;
 }
 
-async function callOllama(prompt, ctx = {}) {
-  const rid = ctx?.rid || '-';
-  const baseUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
-  const model = process.env.OLLAMA_MODEL || 'medis-nlg';
-  const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.1:latest';
+async function callOllama(prompt) {
+  throw new Error('Ollama backend sudah dihapus. Gunakan OpenAI-compatible API.');
+}
 
-  const startedAt = Date.now();
-  if (LOG_LEVEL === 'debug') {
-    console.log(`[${nowIso()}] [req:${rid}] OLLAMA begin baseUrl=${baseUrl} model=${model} timeoutMs=${OLLAMA_TIMEOUT_MS}`);
-  }
+function resolveNlgProvider() {
+  return 'openai';
+}
 
-  let availableModels = [];
-  try {
-    const tagsRes = await fetchWithTimeout(`${baseUrl}/api/tags`);
-    if (tagsRes.ok) {
-      const tags = await tagsRes.json();
-      availableModels = Array.isArray(tags?.models) ? tags.models.map(m => m?.name).filter(Boolean) : [];
-    }
-  } catch {
-    availableModels = [];
-  }
+async function callOpenAICompatible(prompt) {
+  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  if (!apiKey) throw new Error('OPENAI_API_KEY belum di-set.');
 
-  const chosenModel = (
-    availableModels.includes(model) ? model :
-    (availableModels.includes(fallbackModel) ? fallbackModel : (availableModels[0] || model))
-  );
+  const base = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').trim().replace(/\/$/, '');
+  const model = String(process.env.OPENAI_MODEL || '').trim();
+  if (!model) throw new Error('OPENAI_MODEL belum di-set (contoh: gpt-4o-mini).');
 
-  // Try generate then chat.
-  const genUrl = `${baseUrl}/api/generate`;
-  const genPayload = { model: chosenModel, prompt, stream: false };
-
-  let res;
-  try {
-    res = await fetchWithTimeout(genUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(genPayload)
-    });
-  } catch (e) {
-    const ms = Date.now() - startedAt;
-    const msg = String(e?.name || '').includes('Abort') ? `Timeout setelah ${OLLAMA_TIMEOUT_MS}ms` : String(e);
-    console.error(`[${nowIso()}] [req:${rid}] OLLAMA generate failed after ${ms}ms: ${msg}`);
-    throw new Error(`Ollama request gagal: ${msg}. (Coba naikkan OLLAMA_TIMEOUT_MS jika model lambat)`);
-  }
-
-  if (res.ok) {
-    const data = await res.json();
-    if (LOG_LEVEL === 'debug') {
-      const ms = Date.now() - startedAt;
-      console.log(`[${nowIso()}] [req:${rid}] OLLAMA generate ok model=${chosenModel} (${ms}ms)`);
-    }
-    return String(data.response || '');
-  }
-
-  // If /api/generate is unavailable, we'll try /api/chat.
-
-  const chatUrl = `${baseUrl}/api/chat`;
-  const chatPayload = {
-    model: chosenModel,
-    stream: false,
+  const url = `${base}/chat/completions`;
+  const payload = {
+    model,
+    temperature: 0.2,
     messages: [
       { role: 'system', content: 'Anda adalah MEDIS-NLG ANALYST.' },
       { role: 'user', content: prompt }
     ]
   };
 
-  let res2;
-  try {
-    res2 = await fetchWithTimeout(chatUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(chatPayload)
-    });
-  } catch (e) {
-    const ms = Date.now() - startedAt;
-    const msg = String(e?.name || '').includes('Abort') ? `Timeout setelah ${OLLAMA_TIMEOUT_MS}ms` : String(e);
-    console.error(`[${nowIso()}] [req:${rid}] OLLAMA chat failed after ${ms}ms: ${msg}`);
-    throw new Error(`Ollama request gagal: ${msg}. (Coba naikkan OLLAMA_TIMEOUT_MS jika model lambat)`);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`OpenAI-compatible error: ${res.status} ${text}`);
   }
 
-  if (!res2.ok) {
-    const text = await res2.text().catch(() => '');
-    const ms = Date.now() - startedAt;
-    console.error(`[${nowIso()}] [req:${rid}] OLLAMA http error model=${chosenModel} genStatus=${res.status} chatStatus=${res2.status} (${ms}ms)`);
-    throw new Error(
-      `Ollama error: ${res.status} / ${res2.status} ${text}. ` +
-      `Model dipakai: ${chosenModel}. ` +
-      `Jika ingin model kustom, buat: ollama create medis-nlg -f Modelfile`
-    );
-  }
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+  return String(content || '');
+}
 
-  const data2 = await res2.json();
-  if (LOG_LEVEL === 'debug') {
-    const ms = Date.now() - startedAt;
-    console.log(`[${nowIso()}] [req:${rid}] OLLAMA chat ok model=${chosenModel} (${ms}ms)`);
-  }
-  return String(data2?.message?.content || '');
+async function callNlgProvider(prompt) {
+  return callOpenAICompatible(prompt);
 }
 
 function safeString(x) {
@@ -981,167 +952,65 @@ function tryParseJsonObject(text) {
     const m = raw.match(/\{[\s\S]*\}/);
     if (!m) return null;
     try {
-      const obj2 = JSON.parse(m[0]);
-      return (obj2 && typeof obj2 === 'object') ? obj2 : null;
-    } catch {
-      return null;
-    }
+ 
+  async function callOllama(prompt) {
+    throw new Error('Ollama backend sudah dihapus. Gunakan OpenAI-compatible API.');
   }
-}
 
-function normalizeToLines(value) {
-  if (value == null) return '';
-  if (typeof value === 'string') {
-    return String(value)
-      .replaceAll('\\r\\n', '\n')
-      .replaceAll('\\n', '\n')
-      .replaceAll('\\t', '\t')
-      .trim();
+  function resolveNlgProvider() {
+    return 'openai';
   }
-  if (Array.isArray(value)) {
-    return value.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n').trim();
-  }
-  if (typeof value === 'object') {
-    // Keep stable key order for common cases.
-    const keys = Object.keys(value);
-    return keys.map(k => {
-      const v = value[k];
-      const vv = (typeof v === 'string') ? v.trim() : (v == null ? '' : String(v));
-      return vv ? `${k}: ${vv}` : `${k}:`;
-    }).join('\n').trim();
-  }
-  return String(value).trim();
-}
 
-function normalizeDoctorDraft(draft) {
-  const execRaw = draft?.exec;
-  const corrRaw = draft?.corr;
-  const conclRaw = draft?.conclusion;
+  async function callOpenAICompatible(prompt) {
+    const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+    if (!apiKey) throw new Error('OPENAI_API_KEY belum di-set.');
 
-  // EXEC: accept either string lines or object with keys.
-  let exec = '';
-  if (execRaw && typeof execRaw === 'object' && !Array.isArray(execRaw)) {
-    const get = (...keys) => {
-      for (const k of keys) {
-        for (const kk of Object.keys(execRaw)) {
-          if (kk.toLowerCase().trim() === k.toLowerCase().trim()) {
-            return normalizeToLines(execRaw[kk]);
-          }
-        }
-      }
-      return '';
+    const base = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').trim().replace(/\/$/, '');
+    const model = String(process.env.OPENAI_MODEL || '').trim();
+    if (!model) throw new Error('OPENAI_MODEL belum di-set (contoh: gpt-4o-mini).');
+
+    const url = `${base}/chat/completions`;
+    const payload = {
+      model,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'Anda adalah MEDIS-NLG ANALYST.' },
+        { role: 'user', content: prompt }
+      ]
     };
-    const keluhan = get('Keluhan/Gejala', 'Keluhan', 'Gejala');
-    const temuan = get('Temuan utama hematologi (ringkas)', 'Temuan utama', 'Temuan');
-    const dugaan = get('Dugaan berbasis hematologi', 'Dugaan');
-    const narasi = get('Narasi sistem', 'Narasi');
-    const kesAwal = get('Kesimpulan awal');
-    exec = [
-      `Keluhan/Gejala: ${safeString(keluhan) || '(tidak disebutkan)'}.`,
-      `Temuan utama hematologi (ringkas): ${safeString(temuan) || '(tidak ada)'}.`,
-      `Dugaan berbasis hematologi: ${safeString(dugaan) || '(tidak ada)'}.`,
-      narasi ? `Narasi sistem: ${safeString(narasi)}` : 'Narasi sistem: (tidak ada).',
-      `Kesimpulan awal: ${safeString(kesAwal) || '(tidak ada)'}.`
-    ].join('\n');
-  } else {
-    exec = normalizeToLines(execRaw);
-  }
 
-  // CORR: accept string or array/object -> lines.
-  const corr = normalizeToLines(corrRaw);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(payload)
+    });
 
-  // CONCLUSION: accept object/string; ensure it contains required first lines.
-  let conclusion = '';
-  if (conclRaw && typeof conclRaw === 'object' && !Array.isArray(conclRaw)) {
-    const text = normalizeToLines(conclRaw);
-    conclusion = text;
-  } else {
-    conclusion = normalizeToLines(conclRaw);
-  }
-
-  return { exec: exec.trim(), corr: corr.trim(), conclusion: conclusion.trim() };
-}
-
-function enforceDoctorDraftFormat({ exec, corr, conclusion, answeredCount, dxLabels, fallbacks }) {
-  const safeAnswered = Number.isFinite(answeredCount) ? answeredCount : 0;
-  const dxText = (Array.isArray(dxLabels) && dxLabels.length) ? dxLabels.join('; ') : '(tidak ada dugaan khusus)';
-
-  // EXEC: enforce exactly 5 lines with required labels.
-  const execText = normalizeToLines(exec);
-  const lines = execText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const pick = (label) => {
-    const want = `${String(label).toLowerCase().trim()}:`;
-    for (const l of lines) {
-      const ll = String(l).toLowerCase().trim();
-      if (!ll.startsWith(want)) continue;
-      return String(l).slice(want.length).trim();
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`OpenAI-compatible error: ${res.status} ${text}`);
     }
-    return '';
-  };
 
-  const fb = (fallbacks && typeof fallbacks === 'object') ? fallbacks : {};
-
-  const keluhanV = pick('Keluhan/Gejala') || safeString(fb.symptoms);
-  const temuanV = pick('Temuan utama hematologi (ringkas)') || safeString(fb.labSummary);
-  const dugaanV = pick('Dugaan berbasis hematologi') || safeString(fb.dxShort) || dxText;
-  const narasiV = pick('Narasi sistem') || safeString(fb.narasi);
-  const kesAwalV = pick('Kesimpulan awal') || safeString(fb.kesimpulanAwal);
-
-  const ensureDot = (s) => {
-    const t = safeString(s);
-    if (!t) return t;
-    return /[.!?…]$/.test(t) ? t : `${t}.`;
-  };
-
-  exec = [
-    `Keluhan/Gejala: ${ensureDot(keluhanV || '(tidak disebutkan)')}`,
-    `Temuan utama hematologi (ringkas): ${ensureDot(temuanV || '(tidak ada)')}`,
-    `Dugaan berbasis hematologi: ${ensureDot(dugaanV || '(tidak ada)')}`,
-    `Narasi sistem: ${ensureDot(narasiV || '(tidak ada)')}`,
-    `Kesimpulan awal: ${ensureDot(kesAwalV || '(tidak ada)')}`
-  ].join('\n');
-
-  // CORR: enforce minimum 3 lines with standard wording.
-  const corrLines = String(corr || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const defaultCorr = [
-    `Integrasi anamnesis: ${safeAnswered} jawaban anamnesis terisi.`,
-    'Korelasi klinis perlu disesuaikan dengan pemeriksaan fisik, riwayat penyakit, obat, dan tren hasil lab serial.',
-    'Bila ada tanda bahaya (perdarahan, penurunan kesadaran, sesak, hipotensi), pertimbangkan rujukan/penanganan segera.'
-  ];
-  if (corrLines.length < 3 || !/^Integrasi\s+anamnesis\s*:/i.test(corrLines[0] || '')) {
-    corr = defaultCorr.join('\n');
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    return String(content || '');
   }
 
-  // CONCLUSION: enforce two-line format.
-  const conclLines = String(conclusion || '').split(/\r?\n/).map(l => l.trim());
-  let bullet = conclLines.find(l => /^-\s+/.test(l)) || `- ${dxText}.`;
-  if (!bullet.endsWith('.')) bullet = `${bullet}.`;
-  conclusion = ['Kesimpulan sementara:', bullet].join('\n');
-
-  return {
-    exec: String(exec || '').trim(),
+  async function callNlgProvider(prompt) {
+    return callOpenAICompatible(prompt);
     corr: String(corr || '').trim(),
     conclusion: String(conclusion || '').trim()
   };
 }
 
 app.get('/api/health', async (_req, res) => {
-  const url = process.env.OLLAMA_URL || 'http://localhost:11434';
-  try {
-    const r = await fetch(`${url}/api/version`);
-    const ok = r.ok;
-    const txt = ok ? await r.text() : '';
-    let tags = null;
-    try {
-      const t = await fetch(`${url}/api/tags`);
-      tags = t.ok ? await t.json() : null;
-    } catch {
-      tags = null;
-    }
-    res.json({ ok, ollamaUrl: url, versionRaw: txt, tags });
-  } catch (e) {
-    res.json({ ok: false, ollamaUrl: url, error: String(e) });
-  }
+  const provider = 'openai';
+  const base = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').trim().replace(/\/$/, '');
+  const model = String(process.env.OPENAI_MODEL || '').trim();
+  const hasKey = Boolean(String(process.env.OPENAI_API_KEY || '').trim());
+  res.json({ ok: hasKey && Boolean(model), provider, baseUrl: base, model, hasKey });
 });
 
 app.post('/api/analyze', async (req, res) => {
@@ -1227,7 +1096,8 @@ app.post('/api/analyze', async (req, res) => {
   const wantOllama = useOllama === true;
   if (wantOllama) {
     try {
-      nlg = await callOllama(prompt, { rid });
+      nlg = await callNlgProvider(prompt);
+
 
       const hasDisclaimer = /\bCatatan\s*:/i.test(nlg) || /bukan diagnosis final/i.test(nlg);
       if (!hasDisclaimer) {
@@ -1240,7 +1110,9 @@ app.post('/api/analyze', async (req, res) => {
         nlg = `${nlg}\n\nPertanyaan (dari sistem):\n${nextQuestionTexts.map(t => `- ${t}`).join('\n')}`;
       }
     } catch (e) {
-      nlg = `${description}\n\nCatatan: Ollama tidak dapat diakses. Detail: ${String(e)}`;
+      const provider = resolveNlgProvider();
+      const providerLabel = provider === 'openai' ? 'API provider' : 'NLG Helper';
+      nlg = `${description}\n\nCatatan: ${providerLabel} tidak dapat diakses. Detail: ${String(e)}`;
     }
   } else {
     nlg = description;
@@ -1361,7 +1233,7 @@ app.post('/api/doctor-draft', async (req, res) => {
   const prompt = buildDoctorDraftPrompt({ facts, labText, nlgResponse: d.response || '' });
 
   try {
-    const raw = await callOllama(prompt, { rid });
+    const raw = await callNlgProvider(prompt);
     const obj = tryParseJsonObject(raw) || {};
     const norm = normalizeDoctorDraft(obj);
     const enforced = enforceDoctorDraftFormat({

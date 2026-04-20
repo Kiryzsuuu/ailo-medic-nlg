@@ -398,7 +398,7 @@
               </select>
             </div>
             <div>
-              <label>Gunakan Ollama NLG</label>
+              <label>Gunakan NLG Helper</label>
               <select id="useOllama">
                 <option value="false">Tidak (offline)</option>
                 <option value="true">Ya</option>
@@ -521,7 +521,7 @@
       );
     }
 
-    async function generateDoctorDraftViaOllama(last) {
+    async function generateDoctorDraftViaNlgHelper(last) {
       const r = await fetch('/api/doctor-draft', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -529,7 +529,7 @@
       });
       const json = await r.json().catch(() => ({}));
       if (!r.ok || !json?.ok) {
-        const msg = json?.error ? String(json.error) : 'Gagal generate draft via Ollama.';
+        const msg = json?.error ? String(json.error) : 'Gagal generate draft via NLG Helper.';
         throw new Error(msg);
       }
       const sys = makeDoctorDraftFromSystem(last);
@@ -1256,20 +1256,20 @@
         els.saveHint.textContent = when ? `Tersimpan: ${when}` : 'Tersimpan.';
       }
     } else {
-      const wantOllamaDraft = payload.useOllama === true;
-      if (wantOllamaDraft) {
+      const wantNlgHelperDraft = payload.useOllama === true;
+      if (wantNlgHelperDraft) {
         try {
-          if (els.saveHint) els.saveHint.textContent = 'Membuat draft via Ollama...';
-          const draft = await generateDoctorDraftViaOllama(window.__lastResult);
+          if (els.saveHint) els.saveHint.textContent = 'Membuat draft via NLG Helper...';
+          const draft = await generateDoctorDraftViaNlgHelper(window.__lastResult);
           writeDoctorDraftToUI(draft);
           if (els.saveHint) {
-            els.saveHint.textContent = hasSavedText ? 'Draft Ollama baru (draft tersimpan berbeda kasus).' : 'Draft Ollama (belum disimpan).';
+            els.saveHint.textContent = hasSavedText ? 'Draft NLG Helper baru (draft tersimpan berbeda kasus).' : 'Draft NLG Helper (belum disimpan).';
           }
         } catch (e) {
           const draft = makeDoctorDraftFromSystem(window.__lastResult);
           writeDoctorDraftToUI(draft);
           if (els.saveHint) {
-            els.saveHint.textContent = `Draft sistem (Ollama gagal: ${String(e?.message || e)}).`;
+            els.saveHint.textContent = `Draft sistem (NLG Helper gagal: ${String(e?.message || e)}).`;
           }
         }
       } else {
@@ -1377,7 +1377,7 @@
           <img src="/ailo-favicon.png" alt="AILO" style="width:22px; height:22px; object-fit:contain;" />
           <div style="font-weight:700;">Ringkasan Hasil</div>
         </div>
-        <div class="help" style="margin:0;">${esc(generatedAt)} • NLG: ${useOllama ? 'Ollama' : 'Offline'}</div>
+        <div class="help" style="margin:0;">${esc(generatedAt)} • NLG: ${useOllama ? 'NLG Helper' : 'Offline'}</div>
       </div>
 
       <div class="row two" style="margin: 0;">
@@ -1951,13 +1951,18 @@
       const r = await fetch('/api/health');
       const data = await r.json();
       const ok = Boolean(data?.ok);
+      const provider = String(data?.provider || 'openai');
+      const model = String(data?.model || '').trim();
+      const hasKey = Boolean(data?.hasKey);
+
       if (ok) {
         dot.classList.add('ok');
-        const modelCount = Array.isArray(data?.tags?.models) ? data.tags.models.length : 0;
-        text.textContent = `Status: backend OK, Ollama OK, model: ${modelCount}`;
+        text.textContent = `Status: backend OK, NLG Helper OK, provider: ${provider}, model: ${model || '-'}${hasKey ? '' : ' (API key belum di-set)'}`;
       } else {
         dot.classList.remove('ok');
-        text.textContent = 'Status: backend OK, Ollama tidak terdeteksi';
+        text.textContent = hasKey
+          ? `Status: backend OK, NLG Helper belum siap${model ? ` (model: ${model})` : ''}`
+          : 'Status: backend OK, NLG Helper belum siap (API key belum di-set)';
       }
     } catch {
       dot.classList.remove('ok');
@@ -2288,14 +2293,14 @@
       }
       (async () => {
         try {
-          if (els.saveHint) els.saveHint.textContent = 'Membuat draft via Ollama...';
-          const draft = await generateDoctorDraftViaOllama(last);
+          if (els.saveHint) els.saveHint.textContent = 'Membuat draft via NLG Helper...';
+          const draft = await generateDoctorDraftViaNlgHelper(last);
           writeDoctorDraftToUI(draft);
-          if (els.saveHint) els.saveHint.textContent = 'Draft dari Ollama (belum disimpan).';
+          if (els.saveHint) els.saveHint.textContent = 'Draft dari NLG Helper (belum disimpan).';
         } catch (e) {
           const draft = makeDoctorDraftFromSystem(last);
           writeDoctorDraftToUI(draft);
-          if (els.saveHint) els.saveHint.textContent = `Draft sistem (Ollama gagal: ${String(e?.message || e)}).`;
+          if (els.saveHint) els.saveHint.textContent = `Draft sistem (NLG Helper gagal: ${String(e?.message || e)}).`;
         }
       })();
     });
