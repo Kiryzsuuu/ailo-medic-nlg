@@ -58,10 +58,10 @@ jobs:
           set -euo pipefail
           SHORT_SHA="${GITHUB_SHA:0:7}"
           URL="https://${AZURE_WEBAPP_NAME_WEB}.azurewebsites.net/"
-          echo "Checking $URL contains UI build $SHORT_SHA"
+          echo "Checking $URL contains injected UI_BUILD $SHORT_SHA"
           for i in {1..20}; do
             BODY="$(curl -fsSL "$URL" | tr -d '\r' || true)"
-            if echo "$BODY" | grep -q "UI ${SHORT_SHA}"; then
+            if echo "$BODY" | grep -q "const UI_BUILD = '${SHORT_SHA}'"; then
               echo "OK: build stamp found"
               exit 0
             fi
