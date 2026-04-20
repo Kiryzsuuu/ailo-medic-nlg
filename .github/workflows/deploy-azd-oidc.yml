@@ -1,8 +1,6 @@
 name: Deploy (azd + OIDC)
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 permissions:
