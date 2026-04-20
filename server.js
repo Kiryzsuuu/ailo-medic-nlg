@@ -98,6 +98,11 @@ function parseLabText(text) {
   const raw = String(text || '');
   const lowered = raw.toLowerCase();
 
+  // Guard: urinalysis reports often contain "leukosit", "eritrosit", "glukosa" etc.
+  // but they are NOT hematology values. Avoid mis-parsing (e.g., "Esterase Leukosit +1" -> WBC=1).
+  const looksLikeUrinalysis = /\b(urine\s*lengkap|urin\b|urinalisis|urinalysis|sedimen\s*urin|dipstick)\b/i.test(raw);
+  if (looksLikeUrinalysis) return {};
+
   const synonyms = {
     hb: ['hb', 'hemoglobin', 'haemoglobin'],
     leukosit: ['leukosit', 'leukocyte', 'leukocytes', 'leucocyte', 'leucocytes', 'wbc'],
@@ -865,17 +870,34 @@ async function callOpenAICompatible(prompt) {
     messages: [
       { role: 'system', content: 'Anda adalah MEDIS-NLG ANALYST.' },
       { role: 'user', content: prompt }
-    ]
+    ],
+    max_tokens: (() => {
+      const n = Number(String(process.env.OPENAI_MAX_TOKENS || '900').trim());
+      return Number.isFinite(n) && n > 0 ? Math.min(Math.max(Math.round(n), 200), 2000) : 900;
+    })()
   };
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify(payload)
-  });
+  const timeoutMs = (() => {
+    const n = Number(String(process.env.OPENAI_TIMEOUT_MS || '25000').trim());
+    return Number.isFinite(n) && n > 0 ? Math.min(Math.max(Math.round(n), 5000), 120000) : 25000;
+  })();
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(new Error(`OpenAI timeout after ${timeoutMs}ms`)), timeoutMs);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    });
+  } finally {
+    clearTimeout(t);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -1095,9 +1117,13 @@ app.post('/api/analyze', async (req, res) => {
   const rid = req?.requestId || '-';
 
   const db = JSON.parse(await fs.readFile(path.join(ROOT, 'anamnesis_q.json'), 'utf-8'));
-  const labs = parseLabText(labText);
-  const interpretation = interpretLabs(labs, sex);
-  const diagnosis = buildDiagnosis(interpretation);
+
+  const isUrinalysis = /\b(urine\s*lengkap|urin\b|urinalisis|urinalysis|sedimen\s*urin|dipstick)\b/i.test(String(labText || ''));
+  const labs = isUrinalysis ? {} : parseLabText(labText);
+  const interpretation = isUrinalysis
+    ? { findings: [], abnormal: [], critical: [], suspected_conditions: [] }
+    : interpretLabs(labs, sex);
+  const diagnosis = isUrinalysis ? { items: [] } : buildDiagnosis(interpretation);
   // Add symptom-based suspected conditions (so conclusion can show disease-like labels).
   try {
     const extra = buildSymptomBasedDiagnosis(symptomsText);
@@ -1125,7 +1151,14 @@ app.post('/api/analyze', async (req, res) => {
 
   const nextQuestions = pickNextQuestions(db, interpretation.suspected_conditions, safeAnswers, 3);
 
-  const description = formatDescription(interpretation);
+  const description = isUrinalysis
+    ? [
+        'Hasil yang diunggah terdeteksi sebagai urinalisis (Urine Lengkap).',
+        'Sistem hematologi (Hb/WBC/PLT) tidak diterapkan untuk urinalisis agar tidak salah interpretasi.',
+        'Ringkasan urinalisis (dari teks):',
+        String(labText || '').trim()
+      ].filter(Boolean).join('\n')
+    : formatDescription(interpretation);
   const critical = interpretation.critical.length ? 'YA' : 'TIDAK';
 
   const facts = {
