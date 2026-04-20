@@ -21,6 +21,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Detect optional pyapi
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d "pyapi" ]; then
+            echo "PYAPI_PRESENT=true" >> "$GITHUB_ENV"
+            echo "pyapi folder detected"
+          else
+            echo "PYAPI_PRESENT=false" >> "$GITHUB_ENV"
+            echo "pyapi folder not found; will skip pyapi deploy"
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -72,8 +84,18 @@ jobs:
           exit 1
 
       - name: Deploy pyapi (Python)
+        if: env.PYAPI_PRESENT == 'true' && secrets.AZURE_WEBAPP_PUBLISH_PROFILE_PYAPI != ''
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME_PYAPI }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_PYAPI }}
           package: pyapi
+
+      - name: Skip pyapi deploy (missing folder/secret)
+        if: env.PYAPI_PRESENT != 'true' || secrets.AZURE_WEBAPP_PUBLISH_PROFILE_PYAPI == ''
+        shell: bash
+        run: |
+          echo "Skipping pyapi deploy. PYAPI_PRESENT=${PYAPI_PRESENT}."
+          if [ "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_PYAPI }}" = "" ]; then
+            echo "Reason: secret AZURE_WEBAPP_PUBLISH_PROFILE_PYAPI is not set."
+          fi
