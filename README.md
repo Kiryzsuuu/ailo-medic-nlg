@@ -118,7 +118,7 @@ Repo ini bisa auto-deploy ke 2 Azure App Service (Linux Web App):
 
 Workflow GitHub Actions ada di [.github/workflows/deploy-appservice.yml](.github/workflows/deploy-appservice.yml).
 
-Jika kamu ingin **full dari 0 sampai live** (provision infra + deploy app) langsung dari GitHub, gunakan workflow OIDC + `azd`:
+Jika kamu ingin **full dari 0 sampai live** (provision infra + deploy app) langsung dari GitHub, gunakan workflow OIDC + `azd` (workflow ini dijalankan **manual** dari tab Actions):
 - `.github/workflows/deploy-azd-oidc.yml`
 
 ### 1) Tambahkan secrets di GitHub
