@@ -1,0 +1,55 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: medis-nlg-appservice
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Can be overridden using GitHub Actions Variables (Settings -> Secrets and variables -> Actions -> Variables)
+      AZURE_WEBAPP_NAME_WEB: ${{ vars.AZURE_WEBAPP_NAME_WEB || 'medis-nlg-web-fpvtjrtpckvxo' }}
+      AZURE_WEBAPP_NAME_PYAPI: ${{ vars.AZURE_WEBAPP_NAME_PYAPI || 'medis-nlg-pyapi-fpvtjrtpckvxo' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Create web deploy zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f web.zip
+          zip -r web.zip \
+            server.js package.json package-lock.json README.md \
+            public scripts Modelfile anamnesis_q.json medis_nlg.py requirements.txt START.bat START.ps1 \
+            -x "**/.git/**" "**/.github/**" "**/.azure/**" "**/.venv/**" "**/node_modules/**" "pyapi/**"
+
+      - name: Deploy web (Node)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME_WEB }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_WEB }}
+          package: web.zip
+
+      - name: Deploy pyapi (Python)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME_PYAPI }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_PYAPI }}
+          package: pyapi

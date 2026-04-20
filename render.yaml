@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: medis-nlg-web
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: .
+    buildCommand: npm ci
+    startCommand: node server.js
+    autoDeploy: true
+
+  - type: web
+    name: medis-nlg-pyapi
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: pyapi
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 2 -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:$PORT
+    autoDeploy: true

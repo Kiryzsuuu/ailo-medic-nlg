@@ -1,0 +1,25 @@
+.git/
+.gitignore
+
+# Local environments / caches
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Python service should deploy from ./pyapi only
+pyapi/
+
+# Node artifacts
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Misc
+.deploy/

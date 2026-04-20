@@ -1,0 +1,12 @@
+name: medis-nlg
+metadata:
+  template: custom
+services:
+  web:
+    project: .
+    language: js
+    host: appservice
+  pyapi:
+    project: pyapi
+    language: python
+    host: appservice

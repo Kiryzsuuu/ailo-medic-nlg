@@ -1,0 +1,65 @@
+name: Deploy (azd + OIDC)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: medis-nlg-azd
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      # Required secrets
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Required variables (or change defaults)
+      AZD_ENV_NAME: ${{ vars.AZD_ENV_NAME || 'medis-nlg' }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'southeastasia' }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-medis-nlg' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Azure Developer CLI (azd)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://aka.ms/install-azd.sh | bash
+          azd version
+
+      - name: Provision infra (azd)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Ensure env exists and is selected
+          azd env new "$AZD_ENV_NAME" --no-prompt || azd env select "$AZD_ENV_NAME" --no-prompt
+          azd env set AZURE_LOCATION "$AZURE_LOCATION" --no-prompt
+          azd env set AZURE_RESOURCE_GROUP "$AZURE_RESOURCE_GROUP" --no-prompt
+
+          azd provision --no-prompt
+
+      - name: Deploy app (azd)
+        shell: bash
+        run: |
+          set -euo pipefail
+          azd env select "$AZD_ENV_NAME" --no-prompt
+          azd deploy --no-prompt
