@@ -2219,11 +2219,12 @@
     });
   }
 
-  async function ocrImageBlob(blob, label) {
+  async function ocrImageBlob(blob, label, options = {}) {
     if (!window.Tesseract) throw new Error('Tesseract.js belum termuat');
-    // Adaptive OCR: start with the fastest pass; only add more passes if needed.
-    const GOOD_SCORE = 140;
-    const OCR_TIMEOUT_MS = 60000;
+    // Adaptive OCR with tunable limits so scanned PDFs don't stall for minutes.
+    const GOOD_SCORE = Number.isFinite(options.goodScore) ? Number(options.goodScore) : 120;
+    const OCR_TIMEOUT_MS = Number.isFinite(options.timeoutMs) ? Number(options.timeoutMs) : 35000;
+    const MAX_PASSES = Number.isFinite(options.maxPasses) ? Math.max(1, Math.min(3, Number(options.maxPasses))) : 2;
 
     const dataUrlA = await preprocessImageToDataUrl(blob);
     setUploadStatus(`${label}… OCR cepat`, true);
@@ -2241,7 +2242,7 @@
 
     const textA = (resA?.data?.text || '').trim();
     const scoreA = scoreOcrText(textA);
-    if (scoreA >= GOOD_SCORE) return textA;
+    if (scoreA >= GOOD_SCORE || MAX_PASSES <= 1) return textA;
 
     const dataUrlB = await preprocessImageToDataUrlBinary(blob, 160);
     setUploadStatus(`${label}… OCR diperjelas`, true);
@@ -2259,7 +2260,7 @@
 
     const textB = (resB?.data?.text || '').trim();
     const scoreB = scoreOcrText(textB);
-    if (scoreB >= GOOD_SCORE) return textB;
+    if (scoreB >= GOOD_SCORE || MAX_PASSES <= 2) return scoreB >= scoreA ? textB : textA;
 
     // Last resort: add Indonesian language model (slower) + alternative threshold.
     const dataUrlC = await preprocessImageToDataUrlBinary(blob, 135);
@@ -2325,7 +2326,8 @@
       // Fallback for scanned PDF: render first page to image and OCR.
       setUploadStatus('PDF tampak hasil scan, mencoba OCR halaman 1…', true);
       const page = await withTimeout(pdf.getPage(1), 15000, 'Timeout ambil halaman 1 PDF.');
-      const viewport = page.getViewport({ scale: 1.5 });
+      // Lower render scale for faster OCR on scanned PDF.
+      const viewport = page.getViewport({ scale: 1.2 });
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -2333,11 +2335,15 @@
       await withTimeout(page.render({ canvasContext: ctx, viewport }).promise, 30000, 'Timeout render PDF untuk OCR.');
       const blob = await withTimeout(new Promise((resolve) => canvas.toBlob(resolve, 'image/png')), 10000, 'Timeout membuat gambar OCR.');
       if (!blob) throw new Error('Gagal membuat gambar dari PDF');
-      return await withTimeout(ocrImageBlob(blob, 'OCR PDF'), 120000, 'OCR PDF terlalu lama (timeout > 120s).');
+      return await withTimeout(
+        ocrImageBlob(blob, 'OCR PDF', { maxPasses: 1, timeoutMs: 30000, goodScore: 90 }),
+        45000,
+        'OCR PDF terlalu lama (timeout > 45s).'
+      );
     }
 
     if (type.startsWith('image/')) {
-      return await ocrImageBlob(file, 'OCR foto');
+      return await ocrImageBlob(file, 'OCR foto', { maxPasses: 2, timeoutMs: 35000, goodScore: 100 });
     }
 
     throw new Error(`Format tidak didukung: ${type || name}`);
